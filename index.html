@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10161c">
+<title>Wall Scanner Live</title>
+<style>
+:root{--bg:#10161c;--card:#19222b;--card2:#232f3a;--fg:#e8eef4;--muted:#94a3b1;--line:#30404e;--acc:#4f9bff;--ok:#3ccf7a;--warn:#ffb020;--bad:#ff5a5a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;cursor:pointer;touch-action:manipulation}
+button.pri{background:var(--acc);border-color:var(--acc);color:#06121f;font-weight:700}
+button.bad{color:var(--bad)}
+button:disabled{opacity:.45}
+input[type=text]{font:inherit;color:inherit;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
+header.top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:3}
+header.top h1{font-size:1.15rem;margin:0;flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.muted{color:var(--muted)}.small{font-size:.85rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>button{flex:1 1 auto}
+.wallitem{display:flex;gap:12px;align-items:center;padding:10px;border-radius:12px;background:var(--card2);margin:8px 0;cursor:pointer}
+.wallitem img,.wallitem .ph{width:72px;height:48px;object-fit:cover;border-radius:8px;background:#0b1015;flex:none}
+.wallitem b{display:block}
+.banner{border-radius:12px;padding:12px;margin:12px 0;background:#3a2a10;border:1px solid #6b4a12}
+.banner.ok{background:#12301f;border-color:#1f6b40}
+canvas#wall2d{width:100%;border-radius:10px;background:#0b1015;display:block;touch-action:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.85rem;margin-top:8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.flist div{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.flist button{padding:6px 10px}
+ol.steps{padding-left:20px;margin:6px 0}ol.steps li{margin:4px 0}
+/* AR overlay */
+#ar{position:fixed;inset:0;display:none;font-size:15px;color:#fff;user-select:none;-webkit-user-select:none}
+#ar.on{display:block}
+#arTop{position:absolute;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 10px;background:linear-gradient(#000a,#0000);display:flex;gap:8px;align-items:flex-start}
+#arMsg{flex:1;font-weight:600;text-shadow:0 1px 3px #000}
+#arTop button{background:#000a;border-color:#fff4;padding:8px 12px}
+#cross{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}
+#cross:before{left:21px;top:0;width:2px;height:44px}
+#cross:after{top:21px;left:0;height:2px;width:44px}
+#readout{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);background:#000b;border-radius:10px;padding:6px 10px;font-weight:600;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+#readout:empty{display:none}
+#arBot{position:absolute;left:0;right:0;bottom:0;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 12px);background:linear-gradient(#0000,#000c 30%)}
+#arBot button{background:#1b2530e6;border-color:#ffffff30;padding:12px 10px}
+#arBot button.pri{background:var(--acc);color:#06121f}
+#arBot button.rec{background:#c62828;border-color:#ff8a8a;color:#fff}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.chips button{flex:none;padding:8px 12px;border-radius:20px;font-size:.9rem}
+.chips button.sel{outline:2px solid #fff}
+.chips button i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+#arBot .row{flex-wrap:nowrap}
+#arBot .row>button{flex:1 1 0;min-width:0}
+#slider{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.85rem}
+#slider input{flex:1}
+#nudge{display:flex;gap:6px;margin-bottom:8px}
+#nudge button{flex:1;padding:8px}
+#toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:12px;font-weight:600;pointer-events:none;transition:opacity .3s;opacity:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top"><h1 id="title">Wall Scanner Live</h1><button id="backBtn" hidden>Back</button></header>
+
+  <main class="wrap" id="home">
+    <div id="support" class="banner">Checking whether this phone supports live AR…</div>
+    <div class="card">
+      <b>How it works</b>
+      <ol class="steps small">
+        <li><b>While building:</b> open a new wall, point at its two bottom corners, then film the wall slowly while pipes, cables and rebar are still visible. Mark each one on the screen.</li>
+        <li><b>After plastering:</b> open the wall, point at the same two corners again. The saved picture and marks appear on the finished wall.</li>
+        <li>Aim at a spot to see how far the nearest pipe or cable is, and how much free space you have around it.</li>
+      </ol>
+    </div>
+    <div class="row"><button class="pri" id="newWallBtn">New wall</button><button id="importBtn">Import</button></div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <div id="wallList"></div>
+  </main>
+
+  <main class="wrap" id="wallView" hidden>
+    <div class="card">
+      <input type="text" id="wallName" aria-label="Wall name">
+      <div class="small muted" id="wallStats" style="margin-top:6px"></div>
+    </div>
+    <div class="row"><button class="pri" id="checkBtn">Check wall (camera)</button><button id="scanMoreBtn">Scan / add marks</button></div>
+    <div class="card">
+      <canvas id="wall2d"></canvas>
+      <div class="small" id="info2d" style="margin-top:8px">Tap the picture to see distances.</div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card"><b>Marks</b><div class="flist" id="flist"></div></div>
+    <div class="row"><button id="exportBtn">Export / share</button><button class="bad" id="deleteBtn">Delete wall</button></div>
+  </main>
+</div>
+
+<div id="ar">
+  <div id="arTop"><div id="arMsg"></div><button id="arExit">Close</button></div>
+  <div id="cross"></div>
+  <div id="readout"></div>
+  <div id="toast"></div>
+  <div id="arBot">
+    <div id="slider" hidden><span>Photo</span><input type="range" id="opacity" min="0" max="100" value="60"><span>Marks</span><input type="checkbox" id="showMarks" checked></div>
+    <div id="nudge" hidden><button data-n="-1,0">◀</button><button data-n="1,0">▶</button><button data-n="0,1">▲</button><button data-n="0,-1">▼</button><button data-n="0,0">Reset</button></div>
+    <div class="chips" id="chips"></div>
+    <div class="row" id="arBtns"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ---------- mark types ---------- */
+const TYPES = {
+  pipe:   {label:'Pipe',        color:'#3b9bff', w:0.04,  kind:'line',  danger:true},
+  cable:  {label:'Cable',       color:'#ffb020', w:0.02,  kind:'line',  danger:true},
+  rebar:  {label:'Rebar',       color:'#ff5a5a', w:0.016, kind:'line',  danger:true},
+  box:    {label:'Socket/box',  color:'#c77dff', w:0.08,  kind:'point', danger:true},
+  hole:   {label:'Hole',        color:'#2ee6a8', w:0.06,  kind:'point', danger:true},
+  opening:{label:'Window/door', color:'#ffffff', w:0,     kind:'rect',  danger:false},
+  measure:{label:'Measure',     color:'#ffffff', w:0,     kind:'two',   danger:false},
+};
+const MARGIN = 0.05;      // keep 5 cm from anything dangerous
+const DEFAULT_H = 2.6;
+
+/* ---------- geometry on the wall (u = metres from corner 1 along the wall, v = metres up) ---------- */
+function segDist(p,a,b){
+  const dx=b[0]-a[0], dy=b[1]-a[1], L=dx*dx+dy*dy;
+  let t = L ? ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L : 0; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p[0]-a[0]-t*dx, p[1]-a[1]-t*dy);
+}
+function featDist(f,p){
+  const t=TYPES[f.type];
+  if(t.kind==='point') return Math.max(0, Math.hypot(p[0]-f.pts[0][0], p[1]-f.pts[0][1]) - t.w/2);
+  if(t.kind==='line'){ let d=Infinity; for(let i=1;i<f.pts.length;i++) d=Math.min(d,segDist(p,f.pts[i-1],f.pts[i])); return Math.max(0,d-t.w/2); }
+  if(t.kind==='rect'){ const [a,b]=f.pts, x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]);
+    const dx=Math.max(x0-p[0],0,p[0]-x1), dy=Math.max(y0-p[1],0,p[1]-y1); return Math.hypot(dx,dy); }
+  return Infinity;
+}
+function nearestDanger(wall,p){
+  let best=null, d=Infinity;
+  for(const f of wall.features){ if(!TYPES[f.type].danger) continue; const x=featDist(f,p); if(x<d){d=x;best=f;} }
+  return {f:best,d};
+}
+function blockedDist(wall,p){
+  let d=Infinity;
+  for(const f of wall.features){ const t=TYPES[f.type]; if(t.danger||t.kind==='rect') d=Math.min(d,featDist(f,p)); }
+  return d;
+}
+function freeSpace(wall,p){
+  const step=0.01, out={};
+  for(const [k,dx,dy] of [['l',-1,0],['r',1,0],['d',0,-1],['u',0,1]]){
+    let s=0;
+    while(s<8){
+      const q=[p[0]+dx*(s+step), p[1]+dy*(s+step)];
+      if(q[0]<0||q[0]>wall.W||q[1]<0||q[1]>wall.H) break;
+      if(blockedDist(wall,q)<MARGIN) break;
+      s+=step;
+    }
+    out[k]=s;
+  }
+  return {w:out.l+out.r, h:out.u+out.d};
+}
+const cm = m => (m*100).toFixed(0)+' cm';
+const mm2 = m => m>=1 ? m.toFixed(2)+' m' : cm(m);
+
+/* ---------- drawing a wall in 2D (shared by the AR overlay texture and the wall page) ---------- */
+function drawWall(ctx, wall, s, opts={}){
+  const X=u=>u*s, Y=v=>(wall.H-v)*s;
+  const fs=Math.max(11, 0.05*s);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  if(opts.grid){
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=Math.max(1,s*0.003);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${fs*0.8}px system-ui`;
+    for(let u=0.5;u<wall.W;u+=0.5){ctx.beginPath();ctx.moveTo(X(u),0);ctx.lineTo(X(u),Y(0));ctx.stroke(); ctx.fillText(u.toFixed(1),X(u)+3,Y(0)-4);}
+    for(let v=0.5;v<wall.H;v+=0.5){ctx.beginPath();ctx.moveTo(0,Y(v));ctx.lineTo(X(wall.W),Y(v));ctx.stroke(); ctx.fillText(v.toFixed(1),3,Y(v)-3);}
+    ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=Math.max(2,s*0.006); ctx.strokeRect(0,0,X(wall.W),Y(0));
+  }
+  const list = opts.pending && opts.pending.pts.length ? [...wall.features, {...opts.pending, pending:true}] : wall.features;
+  // halos first
+  for(const f of list){ const t=TYPES[f.type]; if(!t.danger) continue;
+    ctx.strokeStyle=t.color+'40'; ctx.fillStyle=t.color+'40'; ctx.lineWidth=(t.w+2*MARGIN)*s;
+    if(t.kind==='line' && f.pts.length>1){ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1])));ctx.stroke();}
+    if(t.kind==='point'){ctx.beginPath();ctx.arc(X(f.pts[0][0]),Y(f.pts[0][1]),(t.w/2+MARGIN)*s,0,7);ctx.fill();}
+  }
+  for(const f of list){
+    const t=TYPES[f.type]; ctx.strokeStyle=t.color; ctx.fillStyle=t.color;
+    const P=f.pts.map(p=>[X(p[0]),Y(p[1])]);
+    if(t.kind==='line'){
+      ctx.lineWidth=Math.max(3,t.w*s);
+      if(P.length>1){ctx.beginPath();P.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+      P.forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],Math.max(3,t.w*s*0.6),0,7);ctx.fill();});
+    } else if(t.kind==='point'){
+      const r=t.w/2*s;
+      if(f.type==='box'){ctx.lineWidth=Math.max(2,s*0.008);ctx.strokeRect(P[0][0]-r,P[0][1]-r,2*r,2*r);ctx.fillStyle=t.color+'66';ctx.fillRect(P[0][0]-r,P[0][1]-r,2*r,2*r);}
+      else {ctx.beginPath();ctx.arc(P[0][0],P[0][1],r,0,7);ctx.fillStyle=t.color+'99';ctx.fill();ctx.lineWidth=Math.max(2,s*0.006);ctx.stroke();}
+    } else if(t.kind==='rect'||t.kind==='two'){
+      ctx.lineWidth=Math.max(2,s*0.006);
+      if(t.kind==='two') ctx.setLineDash([s*0.03,s*0.02]);
+      if(P.length===1){ctx.beginPath();ctx.arc(P[0][0],P[0][1],Math.max(4,s*0.01),0,7);ctx.fill();}
+      else if(t.kind==='rect'){
+        ctx.strokeRect(Math.min(P[0][0],P[1][0]),Math.min(P[0][1],P[1][1]),Math.abs(P[1][0]-P[0][0]),Math.abs(P[1][1]-P[0][1]));
+        const a=f.pts[0],b=f.pts[1]; const x0=Math.min(a[0],b[0]),y0=Math.min(a[1],b[1]);
+        label(ctx,`${cm(Math.abs(b[0]-a[0]))} × ${cm(Math.abs(b[1]-a[1]))}`,X(x0)+4,Y(Math.max(a[1],b[1]))+fs+2,fs);
+        label(ctx,`← ${mm2(x0)}  ↑ ${mm2(y0)}`,X(x0)+4,Y(y0)-6,fs*0.85);
+      } else {
+        ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);ctx.lineTo(P[1][0],P[1][1]);ctx.stroke();
+        const L=Math.hypot(f.pts[1][0]-f.pts[0][0],f.pts[1][1]-f.pts[0][1]);
+        label(ctx,mm2(L),(P[0][0]+P[1][0])/2+4,(P[0][1]+P[1][1])/2-6,fs);
+      }
+      ctx.setLineDash([]);
+    }
+  }
+  if(opts.cursor){
+    const p=opts.cursor; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(X(p[0])-12,Y(p[1]));ctx.lineTo(X(p[0])+12,Y(p[1]));ctx.moveTo(X(p[0]),Y(p[1])-12);ctx.lineTo(X(p[0]),Y(p[1])+12);ctx.stroke();
+  }
+}
+function label(ctx,text,x,y,fs){
+  ctx.font=`600 ${fs}px system-ui`; const w=ctx.measureText(text).width;
+  ctx.save(); ctx.setLineDash([]); ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(x-3,y-fs,w+6,fs*1.3); ctx.fillStyle='#fff'; ctx.fillText(text,x,y); ctx.restore();
+}
+function describe(wall,p){
+  const n=nearestDanger(wall,p), fsp=freeSpace(wall,p);
+  let status, level;
+  if(!n.f){status='No marked pipes or cables'; level='ok';}
+  else if(n.d<MARGIN){status=`Too close: ${TYPES[n.f.type].label.toLowerCase()} ${cm(n.d)}`; level='bad';}
+  else if(n.d<0.15){status=`Careful: ${TYPES[n.f.type].label.toLowerCase()} ${cm(n.d)}`; level='warn';}
+  else {status=`OK to drill · nearest ${TYPES[n.f.type].label.toLowerCase()} ${cm(n.d)}`; level='ok';}
+  return {status, level, free:`Free space ${mm2(fsp.w)} wide × ${mm2(fsp.h)} high`, pos:`${mm2(p[0])} from corner 1 · ${mm2(p[1])} up`};
+}
+
+/* ---------- storage (IndexedDB on this phone) ---------- */
+let dbP=null;
+function db(){ if(!dbP) dbP=new Promise((res,rej)=>{const r=indexedDB.open('wallscanner-live',1);r.onupgradeneeded=()=>r.result.createObjectStore('walls',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}); return dbP; }
+async function tx(mode,fn){ const d=await db(); return new Promise((res,rej)=>{const t=d.transaction('walls',mode);const s=t.objectStore('walls');const r=fn(s);t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error);}); }
+const putWall=w=>tx('readwrite',s=>s.put(w));
+const getWall=id=>tx('readonly',s=>s.get(id));
+const allWalls=()=>tx('readonly',s=>s.getAll());
+const delWall=id=>tx('readwrite',s=>s.delete(id));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ---------- home & wall pages ---------- */
+let xrOK=false, current=null;
+async function checkSupport(){
+  const b=$('support');
+  if(!window.isSecureContext){b.textContent='Open this page from its https:// address for the camera to work.';return;}
+  if(!navigator.xr){b.innerHTML='This browser has no live AR. Use an <b>Android phone with Chrome</b> and the <b>Google Play Services for AR</b> app installed. You can still look at saved walls here.';return;}
+  try{ xrOK=await navigator.xr.isSessionSupported('immersive-ar'); }catch(e){ xrOK=false; }
+  if(xrOK){b.className='banner ok';b.textContent='Live AR is available on this phone.';}
+  else b.innerHTML='Live AR is not available. Install or update <b>Google Play Services for AR</b> from the Play Store, then reload. Saved walls can still be viewed.';
+}
+function show(view){
+  $('home').hidden=view!=='home'; $('wallView').hidden=view!=='wall';
+  $('backBtn').hidden=view==='home';
+  $('title').textContent=view==='home'?'Wall Scanner Live':'Wall';
+  window.scrollTo(0,0);
+}
+const thumbURLs=[];
+async function renderHome(){
+  show('home'); current=null;
+  thumbURLs.splice(0).forEach(u=>URL.revokeObjectURL(u));
+  const walls=(await allWalls()).sort((a,b)=>b.updated-a.updated);
+  const L=$('wallList'); L.innerHTML='';
+  if(!walls.length){L.innerHTML='<p class="muted small" style="margin-top:14px">No walls yet. Tap “New wall” to scan your first one.</p>';return;}
+  for(const w of walls){
+    const d=document.createElement('div'); d.className='wallitem';
+    let img='<div class="ph"></div>';
+    if(w.mosaic){const u=URL.createObjectURL(w.mosaic);thumbURLs.push(u);img=`<img src="${u}" alt="">`;}
+    d.innerHTML=`${img}<div><b></b><span class="small muted">${w.W.toFixed(2)} × ${w.H.toFixed(2)} m · ${w.features.length} marks</span></div>`;
+    d.querySelector('b').textContent=w.name;
+    d.onclick=()=>openWall(w.id);
+    L.appendChild(d);
+  }
+}
+let wallImg=null, cursor2d=null;
+async function openWall(id){
+  current=await getWall(id); if(!current) return renderHome();
+  show('wall'); cursor2d=null;
+  $('wallName').value=current.name;
+  $('wallStats').textContent=`${current.W.toFixed(2)} m wide × ${current.H.toFixed(2)} m high · camera picture covers ${Math.round((current.coverage||0)*100)}% · saved ${new Date(current.updated).toLocaleString()}`;
+  wallImg=null;
+  if(current.mosaic){ const img=new Image(); img.onload=()=>{wallImg=img;draw2d();}; img.src=URL.createObjectURL(current.mosaic); }
+  $('checkBtn').disabled=$('scanMoreBtn').disabled=!xrOK;
+  $('legend').innerHTML=Object.values(TYPES).map(t=>`<span><i style="background:${t.color}"></i>${t.label}</span>`).join('');
+  renderFList(); draw2d();
+}
+function draw2d(){
+  if(!current) return;
+  const c=$('wall2d'), cw=c.clientWidth||340, dpr=Math.min(2,devicePixelRatio||1);
+  const s=cw/current.W; c.width=cw*dpr; c.height=current.H*s*dpr; c.style.height=current.H*s+'px';
+  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cw,current.H*s);
+  if(wallImg) ctx.drawImage(wallImg,0,0,cw,current.H*s);
+  drawWall(ctx,current,s,{grid:true,cursor:cursor2d});
+}
+function renderFList(){
+  const L=$('flist'); L.innerHTML='';
+  if(!current.features.length){L.innerHTML='<p class="muted small">No marks yet.</p>';return;}
+  current.features.forEach((f,i)=>{
+    const t=TYPES[f.type], a=f.pts[0];
+    const d=document.createElement('div');
+    d.innerHTML=`<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${t.color};margin-right:6px"></i>${t.label} <span class="small muted">at ${mm2(a[0])}, ${mm2(a[1])} up</span></span><button>Delete</button>`;
+    d.querySelector('button').onclick=async()=>{current.features.splice(i,1);current.updated=Date.now();await putWall(current);renderFList();draw2d();};
+    L.appendChild(d);
+  });
+}
+$('wall2d').addEventListener('pointerdown',e=>{
+  if(!current) return; const r=e.target.getBoundingClientRect(), s=r.width/current.W;
+  cursor2d=[(e.clientX-r.left)/s, current.H-(e.clientY-r.top)/s];
+  const d=describe(current,cursor2d);
+  $('info2d').innerHTML=`<b style="color:var(--${d.level})">${d.status}</b><br>${d.free}<br><span class="muted">${d.pos}</span>`;
+  draw2d();
+});
+window.addEventListener('resize',()=>draw2d());
+$('wallName').addEventListener('change',async()=>{current.name=$('wallName').value.trim()||current.name;current.updated=Date.now();await putWall(current);});
+$('backBtn').onclick=renderHome;
+$('newWallBtn').onclick=()=>{
+  if(!xrOK){alert('Live AR is not available on this phone.');return;}
+  const n=prompt('Name of the wall (e.g. "Living room, north wall")', 'Wall '+new Date().toLocaleDateString());
+  if(n===null) return;
+  startAR({id:uid(),name:n.trim()||'Wall',created:Date.now(),updated:Date.now(),W:0,H:0,features:[],mosaic:null,coverage:0}, true, 'pipe');
+};
+$('checkBtn').onclick=()=>startAR(current,false,'check');
+$('scanMoreBtn').onclick=()=>startAR(current,false,'pipe');
+$('deleteBtn').onclick=async()=>{ if(confirm(`Delete “${current.name}”? This cannot be undone.`)){await delWall(current.id);renderHome();} };
+$('exportBtn').onclick=async()=>{
+  const w=current, data={app:'wall-scanner-live',version:1,wall:{...w,mosaic:null}};
+  if(w.mosaic) data.mosaic=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(w.mosaic);});
+  const file=new File([JSON.stringify(data)], (w.name.replace(/[^\w\- ]+/g,'')||'wall')+'.wall.json',{type:'application/json'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){ try{await navigator.share({files:[file],title:w.name});return;}catch(e){ if(e.name==='AbortError') return; } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click();
+};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return; e.target.value='';
+  try{
+    const data=JSON.parse(await f.text()); if(data.app!=='wall-scanner-live') throw new Error('not a wall file');
+    const w=data.wall; w.mosaic=data.mosaic?await (await fetch(data.mosaic)).blob():null;
+    if(await getWall(w.id)) w.id=uid();
+    w.updated=Date.now(); await putWall(w); openWall(w.id);
+  }catch(err){alert('Could not import: '+err.message);}
+};
+
+/* ---------- small vector / matrix helpers (column-major like WebXR) ---------- */
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const scl=(a,s)=>[a[0]*s,a[1]*s,a[2]*s], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const len=a=>Math.hypot(a[0],a[1],a[2]), norm=a=>scl(a,1/(len(a)||1));
+function mul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s;}return o;}
+function basis(c0,c1,c2,t){return new Float32Array([c0[0],c0[1],c0[2],0,c1[0],c1[1],c1[2],0,c2[0],c2[1],c2[2],0,t[0],t[1],t[2],1]);}
+const mpos=m=>[m[12],m[13],m[14]];
+
+/* ---------- WebGL ---------- */
+const VS_TEX=`#version 300 es
+in vec2 aP; uniform mat4 uVP,uM; out vec2 vUV;
+void main(){vUV=aP;gl_Position=uVP*uM*vec4(aP,0.,1.);}`;
+const FS_TEX=`#version 300 es
+precision mediump float; in vec2 vUV; uniform sampler2D uT; uniform float uO; uniform int uPre; uniform vec4 uTint; out vec4 o;
+void main(){vec4 c=texture(uT,vUV);
+ if(uPre==1){ if(c.a<0.03) discard; o=vec4(c.rgb/c.a,uO); }
+ else o=vec4(c.rgb*uTint.rgb,c.a*uO*uTint.a);}`;
+const VS_ACC=`#version 300 es
+in vec2 aP; out vec2 vUV; void main(){vUV=aP;gl_Position=vec4(aP*2.-1.,0.,1.);}`;
+const FS_ACC=`#version 300 es
+precision highp float; in vec2 vUV;
+uniform mat4 uCamVP; uniform vec3 uA,uU,uV,uN,uCam; uniform float uW,uH,uGain,uFlip; uniform sampler2D uImg; out vec4 o;
+void main(){
+ vec3 w=uA+uU*(vUV.x*uW)+uV*(vUV.y*uH);
+ vec4 c=uCamVP*vec4(w,1.); if(c.w<=0.) discard;
+ vec2 n=c.xy/c.w; float e=max(abs(n.x),abs(n.y)); if(e>0.98) discard;
+ vec2 uv=n*.5+.5; if(uFlip>.5) uv.y=1.-uv.y;
+ vec3 toCam=uCam-w; float d=length(toCam); if(d>4.5||d<0.2) discard;
+ float facing=abs(dot(toCam/d,uN));
+ float wgt=uGain*smoothstep(0.98,0.55,e)*smoothstep(0.25,0.7,facing)*clamp(1.6-d*0.3,0.2,1.);
+ o=vec4(texture(uImg,uv).rgb*wgt,wgt);
+}`;
+function prog(gl,vs,fs){
+  const p=gl.createProgram();
+  for(const [t,src] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));gl.attachShader(p,s);}
+  gl.bindAttribLocation(p,0,'aP'); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u={}; const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){const a=gl.getActiveUniform(p,i);u[a.name]=gl.getUniformLocation(p,a.name);}
+  return {p,u};
+}
+function canvasTex(gl,canvas,tex){
+  tex=tex||gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  return tex;
+}
+function ringCanvas(){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.strokeStyle='#fff';x.lineWidth=10;x.beginPath();x.arc(64,64,54,0,7);x.stroke();x.fillStyle='#fff';x.beginPath();x.arc(64,64,8,0,7);x.fill();return c;}
+
+/* ---------- AR session ---------- */
+const A = {}; // live AR state
+let glc=null, gl=null, G=null;
+function ensureGL(){
+  if(gl) return;
+  glc=document.createElement('canvas');
+  gl=glc.getContext('webgl2',{xrCompatible:true,alpha:true,antialias:true,preserveDrawingBuffer:false});
+  if(!gl) throw new Error('WebGL2 not available');
+  G={tex:prog(gl,VS_TEX,FS_TEX), acc:prog(gl,VS_ACC,FS_ACC)};
+  G.vbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,G.vbo); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,1,1]),gl.STATIC_DRAW);
+  G.vao=gl.createVertexArray(); gl.bindVertexArray(G.vao); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  G.ring=canvasTex(gl,ringCanvas());
+  G.featCanvas=document.createElement('canvas'); G.featTex=gl.createTexture();
+}
+function flipY(){ try{return localStorage.getItem('wsl-flip')==='1';}catch(e){return false;} }
+
+async function startAR(wall, isNew, tool){
+  try{
+    ensureGL();
+    Object.assign(A,{wall:JSON.parse(JSON.stringify({...wall,mosaic:null})), mosaicBlob:wall.mosaic, isNew, tool, step:'c1', corners:[], F:null,
+      nudge:[0,0], pending:null, recording:false, target:null, hit:null, dirty:false, featDirty:true, hasMosaic:false, frameNo:0, lastHud:0, recFrames:0});
+    const root=$('ar');
+    const session=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test','dom-overlay'],
+      optionalFeatures:['anchors','camera-access','local-floor','depth-sensing'],
+      domOverlay:{root},
+      depthSensing:{usagePreference:['cpu-optimized','gpu-optimized'],dataFormatPreference:['luminance-alpha','float32','unsigned-short']}
+    });
+    A.session=session;
+    await gl.makeXRCompatible();
+    session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,antialias:true})});
+    try{A.ref=await session.requestReferenceSpace('local-floor');}catch(e){A.ref=await session.requestReferenceSpace('local');}
+    A.viewer=await session.requestReferenceSpace('viewer');
+    try{A.hitSource=await session.requestHitTestSource({space:A.viewer,entityTypes:['plane','point']});}
+    catch(e){A.hitSource=await session.requestHitTestSource({space:A.viewer});}
+    A.binding=null;
+    try{ if(session.enabledFeatures?session.enabledFeatures.includes('camera-access'):true) A.binding=new XRWebGLBinding(session,gl);}catch(e){A.binding=null;}
+    A.camOK=false;
+    root.classList.add('on');
+    root.addEventListener('beforexrselect',ev=>ev.preventDefault());
+    session.addEventListener('end',onAREnd);
+    buildUI();
+    session.requestAnimationFrame(onFrame);
+  }catch(err){
+    console.error(err); $('ar').classList.remove('on');
+    alert('Could not start the camera AR: '+(err.message||err)+'\n\nMake sure you use Chrome on Android and that “Google Play Services for AR” is installed.');
+  }
+}
+async function onAREnd(){
+  $('ar').classList.remove('on');
+  const id=A.wall.id;
+  if(A.step==='tools' && A.dirty){ await saveWall(); }
+  A.session=null;
+  if(await getWall(id)) openWall(id); else renderHome();
+}
+function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,1600);}
+
+function buildUI(){
+  const msg=$('arMsg'), chips=$('chips'), btns=$('arBtns');
+  chips.innerHTML=''; btns.innerHTML='';
+  $('slider').hidden=A.step!=='tools'||!A.hasMosaic;
+  $('nudge').hidden=!(A.step==='tools'&&!A.isNew&&A.showNudge);
+  const B=(text,cls,fn,id)=>{const b=document.createElement('button');b.textContent=text;if(cls)b.className=cls;if(id)b.id=id;b.onclick=fn;btns.appendChild(b);return b;};
+  if(A.step==='c1'){
+    msg.textContent=A.isNew?'Step 1 of 3 · Aim the cross at the BOTTOM-LEFT corner of the wall (where wall, floor and side wall meet).':'Aim at the same BOTTOM-LEFT corner you used when scanning this wall.';
+    B('Set corner 1','pri',()=>setCorner(),'placeBtn');
+  } else if(A.step==='c2'){
+    msg.textContent=(A.isNew?'Step 2 of 3 · ':'')+'Now aim at the BOTTOM-RIGHT corner of the same wall.';
+    B('Undo','',()=>{A.corners.pop();A.step='c1';buildUI();});
+    B('Set corner 2','pri',()=>setCorner(),'placeBtn');
+  } else if(A.step==='top'){
+    msg.textContent='Step 3 of 3 · Aim at the TOP of the wall (where it meets the ceiling).';
+    B('Skip (2.60 m)','',()=>setTop(DEFAULT_H));
+    B('Set top','pri',()=>setTop(null),'placeBtn');
+  } else {
+    const order=['check','pipe','cable','rebar','box','hole','opening','measure'];
+    for(const k of order){
+      const c=document.createElement('button'); const t=TYPES[k];
+      c.innerHTML=k==='check'?'Check spot':`<i style="background:${t.color}"></i>${t.label}`;
+      if(A.tool===k) c.className='sel';
+      c.onclick=()=>{ if(A.pending&&A.pending.pts.length) finishPending(); A.tool=k; A.pending=null; A.featDirty=true; buildUI(); };
+      chips.appendChild(c);
+    }
+    if(A.tool==='check'){
+      msg.textContent='Aim the cross at the spot you want to drill or hang something.';
+      if(!A.isNew) B(A.showNudge?'Hide adjust':'Adjust','',()=>{A.showNudge=!A.showNudge;buildUI();});
+    } else {
+      const t=TYPES[A.tool];
+      msg.textContent = t.kind==='line'?`${t.label}: aim at points along it and tap “Add point”, then “Done”.`
+        : t.kind==='point'?`${t.label}: aim at its centre and tap “Add”.`
+        : t.kind==='rect'?'Window/door: add its bottom-left, then its top-right corner.'
+        : 'Measure: add the start point, then the end point.';
+    }
+    if(A.binding) B(A.recording?'■ Stop':'● Film wall',A.recording?'rec':'',()=>{A.recording=!A.recording;if(A.recording)toast('Move slowly across the whole wall');buildUI();});
+    if(A.tool!=='check'){
+      const t=TYPES[A.tool];
+      B('Undo','',undo);
+      B(t.kind==='line'?'Add point':'Add','pri',addPoint,'placeBtn');
+      if(t.kind==='line') B('Done','',()=>{finishPending();buildUI();});
+    }
+    B('Save','',async()=>{finishPending();await saveWall();toast('Saved');});
+  }
+}
+$('arExit').onclick=()=>A.session&&A.session.end();
+$('opacity').oninput=()=>{};
+$('showMarks').onchange=()=>{A.featDirty=true;};
+document.querySelectorAll('#nudge button').forEach(b=>b.onclick=()=>{
+  const [x,y]=b.dataset.n.split(',').map(Number); if(!x&&!y) A.nudge=[0,0]; else {A.nudge[0]+=x*0.01;A.nudge[1]+=y*0.01;}
+  toast(`Shift ${cm(A.nudge[0])} sideways, ${cm(A.nudge[1])} up`);
+});
+
+function setCorner(){
+  if(!A.hit){toast('No surface found yet. Move the phone slowly.');return;}
+  const c={pos:A.hit.pos, mat:A.hit.mat, anchor:null};
+  if(A.hit.result && A.hit.result.createAnchor){ A.hit.result.createAnchor().then(a=>c.anchor=a).catch(()=>{}); }
+  A.corners.push(c);
+  if(A.step==='c1'){A.step='c2';}
+  else {
+    const W=Math.hypot(A.corners[1].pos[0]-A.corners[0].pos[0],A.corners[1].pos[2]-A.corners[0].pos[2]);
+    if(W<0.2){A.corners.pop();toast('Corners are too close together');return;}
+    A.measuredW=W;
+    if(A.isNew){A.wall.W=W;A.step='top';}
+    else { A.step='tools'; toast(`Corners ${W.toFixed(2)} m apart (saved ${A.wall.W.toFixed(2)} m)`); initMosaic(); }
+    computeFrame(true);
+  }
+  buildUI();
+}
+function setTop(h){
+  if(h===null){ if(!A.target){toast('Aim at the wall');return;} h=A.target[1]; if(h<0.5){toast('That is too low for the top');return;} }
+  A.wall.H=h; A.step='tools'; A.dirty=true; initMosaic(); buildUI();
+}
+function computeFrame(initial){
+  const a=A.corners[0].pos, b=A.corners[1].pos;
+  const U=norm([b[0]-a[0],0,b[2]-a[2]]), V=[0,1,0];
+  let N=[-U[2],0,U[0]];
+  if(initial){ A.nSign = (A.camPos && dot(N,sub(A.camPos,a))<0) ? -1 : 1; }
+  N=scl(N,A.nSign||1);
+  A.F={A:a,U,V,N};
+}
+function origin(){ return add(add(A.F.A, scl(A.F.U,A.nudge[0])), scl(A.F.V,A.nudge[1])); }
+
+function addPoint(){
+  if(!A.target){toast('Aim at the wall');return;}
+  const p=[+A.target[0].toFixed(3), +A.target[1].toFixed(3)];
+  const t=TYPES[A.tool];
+  if(t.kind==='point'){ A.wall.features.push({id:uid(),type:A.tool,pts:[p]}); toast(t.label+' added'); }
+  else {
+    if(!A.pending) A.pending={type:A.tool,pts:[]};
+    A.pending.pts.push(p);
+    if((t.kind==='rect'||t.kind==='two') && A.pending.pts.length===2) finishPending();
+  }
+  A.dirty=true; A.featDirty=true;
+}
+function finishPending(){
+  if(A.pending && A.pending.pts.length>=2){ A.wall.features.push({id:uid(),type:A.pending.type,pts:A.pending.pts}); A.dirty=true; }
+  A.pending=null; A.featDirty=true;
+}
+function undo(){
+  if(A.pending&&A.pending.pts.length){A.pending.pts.pop();}
+  else if(A.wall.features.length){A.wall.features.pop();toast('Removed last mark');}
+  A.dirty=true; A.featDirty=true;
+}
+
+/* mosaic: the wall picture built from the live camera, stored premultiplied in a texture */
+function initMosaic(){
+  const W=A.wall.W, H=A.wall.H, ppm=Math.min(400, 2048/Math.max(W,H));
+  A.tw=Math.max(16,Math.round(W*ppm)); A.th=Math.max(16,Math.round(H*ppm));
+  if(G.mosTex){gl.deleteTexture(G.mosTex);gl.deleteFramebuffer(G.mosFB);}
+  G.mosTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,G.mosTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,A.tw,A.th,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D,k,v);
+  G.mosFB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,G.mosFB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,G.mosTex,0);
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  A.hasMosaic=false;
+  if(A.mosaicBlob){
+    const img=new Image();
+    img.onload=()=>{
+      gl.bindTexture(gl.TEXTURE_2D,G.mosTex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
+      gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,Math.min(A.tw,img.width),Math.min(A.th,img.height),gl.RGBA,gl.UNSIGNED_BYTE,resizeTo(img,A.tw,A.th));
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+      A.hasMosaic=true; $('opacity').value=A.tool==='check'?70:40; buildUI();
+    };
+    img.src=URL.createObjectURL(A.mosaicBlob);
+  }
+}
+function resizeTo(img,w,h){ if(img.width===w&&img.height===h) return img; const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c; }
+
+async function saveWall(){
+  const w=A.wall; w.updated=Date.now();
+  if(G.mosFB && (A.recFrames>0 || A.mosaicBlob)){
+    if(A.recFrames>0){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,G.mosFB);
+      const px=new Uint8Array(A.tw*A.th*4); gl.readPixels(0,0,A.tw,A.th,gl.RGBA,gl.UNSIGNED_BYTE,px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      const c=document.createElement('canvas'); c.width=A.tw; c.height=A.th; const ctx=c.getContext('2d');
+      const id=ctx.createImageData(A.tw,A.th); let cov=0;
+      for(let y=0;y<A.th;y++){ const src=(A.th-1-y)*A.tw*4, dst=y*A.tw*4;
+        for(let x=0;x<A.tw*4;x+=4){ const a=px[src+x+3]; if(a>128) cov++;
+          if(a>6){ id.data[dst+x]=Math.min(255,px[src+x]*255/a); id.data[dst+x+1]=Math.min(255,px[src+x+1]*255/a); id.data[dst+x+2]=Math.min(255,px[src+x+2]*255/a); id.data[dst+x+3]=a; } } }
+      ctx.putImageData(id,0,0);
+      w.mosaic=await new Promise(r=>c.toBlob(r,'image/png'));
+      w.coverage=cov/(A.tw*A.th); A.mosaicBlob=w.mosaic;
+    } else w.mosaic=A.mosaicBlob;
+  } else w.mosaic=A.mosaicBlob||null;
+  await putWall(w); A.dirty=false;
+}
+
+function redrawFeatures(){
+  const W=A.wall.W,H=A.wall.H, s=Math.min(250, 2048/Math.max(W,H));
+  const c=G.featCanvas; c.width=Math.round(W*s); c.height=Math.round(H*s);
+  const ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
+  ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=4; ctx.strokeRect(2,2,c.width-4,c.height-4);
+  if($('showMarks').checked) drawWall(ctx,A.wall,s,{pending:A.pending});
+  canvasTex(gl,c,G.featTex); A.featDirty=false;
+}
+
+function onFrame(t,frame){
+  const session=frame.session; session.requestAnimationFrame(onFrame);
+  const pose=frame.getViewerPose(A.ref); if(!pose) return;
+  A.frameNo++;
+  const vm=pose.transform.matrix; A.camPos=mpos(vm);
+  // follow anchors so the wall stays put if tracking corrects itself
+  for(const c of A.corners){ if(c.anchor && frame.trackedAnchors && frame.trackedAnchors.has(c.anchor)){ const p=frame.getPose(c.anchor.anchorSpace,A.ref); if(p) c.pos=mpos(p.transform.matrix); } }
+  if(A.corners.length===2) computeFrame(false);
+  // what the cross is pointing at
+  A.hit=null;
+  const hr=frame.getHitTestResults(A.hitSource);
+  if(hr.length){ const p=hr[0].getPose(A.ref); if(p) A.hit={result:hr[0],pos:mpos(p.transform.matrix),mat:p.transform.matrix}; }
+  A.target=null;
+  if(A.F){
+    const o=A.camPos, dir=norm([-vm[8],-vm[9],-vm[10]]), O=origin();
+    const den=dot(dir,A.F.N);
+    if(Math.abs(den)>1e-3){ const tt=dot(sub(O,o),A.F.N)/den; if(tt>0.05&&tt<12){ const P=add(o,scl(dir,tt)); A.targetPos=P; A.target=[dot(sub(P,O),A.F.U), dot(sub(P,O),A.F.V)]; } }
+  }
+  const layer=session.renderState.baseLayer;
+  // grow the wall picture from the live camera image
+  if(A.recording && A.step==='tools' && A.binding && G.mosFB && (A.frameNo%2===0)){
+    for(const view of pose.views){ if(view.camera){ A.camOK=true;
+      const img=A.binding.getCameraImage(view.camera); if(img) accumulate(view,img); break; } }
+  }
+  if(A.featDirty && A.step==='tools') redrawFeatures();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(G.tex.p); gl.bindVertexArray(G.vao); gl.activeTexture(gl.TEXTURE0); gl.uniform1i(G.tex.u.uT,0);
+  const level = hudInfo();
+  const tint = level==='bad'?[1,.3,.3,1]:level==='warn'?[1,.75,.2,1]:level==='ok'?[.3,1,.5,1]:[1,1,1,1];
+  for(const view of pose.views){
+    const vp=layer.getViewport(view); gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    gl.uniformMatrix4fv(G.tex.u.uVP,false,mul(view.projectionMatrix,view.transform.inverse.matrix));
+    if(A.F && A.step==='tools'){
+      const O=add(origin(),scl(A.F.N,0.003)), M=basis(scl(A.F.U,A.wall.W),scl(A.F.V,A.wall.H),A.F.N,O);
+      gl.uniformMatrix4fv(G.tex.u.uM,false,M);
+      const op=$('opacity').value/100;
+      if(A.hasMosaic && op>0 && !A.recording){ gl.bindTexture(gl.TEXTURE_2D,G.mosTex); gl.uniform1i(G.tex.u.uPre,1); gl.uniform1f(G.tex.u.uO,op); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); }
+      gl.bindTexture(gl.TEXTURE_2D,G.featTex); gl.uniform1i(G.tex.u.uPre,0); gl.uniform1f(G.tex.u.uO,1); gl.uniform4f(G.tex.u.uTint,1,1,1,1); gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+    // corner markers
+    gl.bindTexture(gl.TEXTURE_2D,G.ring); gl.uniform1i(G.tex.u.uPre,0); gl.uniform1f(G.tex.u.uO,1);
+    gl.uniform4f(G.tex.u.uTint,0.3,0.8,1,1);
+    for(const c of A.corners){ drawRingAt(c.pos,c.mat,0.06); }
+    // reticle
+    gl.uniform4f(G.tex.u.uTint,...tint);
+    if(A.F && A.targetPos){ const s=0.05; const P=add(add(A.targetPos,scl(A.F.N,0.004)),add(scl(A.F.U,-s/2),scl(A.F.V,-s/2))); gl.uniformMatrix4fv(G.tex.u.uM,false,basis(scl(A.F.U,s),scl(A.F.V,s),A.F.N,P)); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); }
+    else if(A.hit && A.step!=='tools'){ drawRingAt(A.hit.pos,A.hit.mat,0.08); }
+  }
+}
+function drawRingAt(pos,m,s){
+  const X=[m[0],m[1],m[2]], Z=[m[8],m[9],m[10]], Y=[m[4],m[5],m[6]];
+  const P=add(add(pos,scl(Y,0.002)),add(scl(X,-s/2),scl(Z,-s/2)));
+  gl.uniformMatrix4fv(G.tex.u.uM,false,basis(scl(X,s),scl(Z,s),Y,P)); gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+function accumulate(view,img){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,G.mosFB); gl.viewport(0,0,A.tw,A.th);
+  gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  const P=G.acc; gl.useProgram(P.p); gl.bindVertexArray(G.vao);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,img); gl.uniform1i(P.u.uImg,0);
+  gl.uniformMatrix4fv(P.u.uCamVP,false,mul(view.projectionMatrix,view.transform.inverse.matrix));
+  const O=origin();
+  gl.uniform3fv(P.u.uA,O); gl.uniform3fv(P.u.uU,A.F.U); gl.uniform3fv(P.u.uV,A.F.V); gl.uniform3fv(P.u.uN,A.F.N); gl.uniform3fv(P.u.uCam,mpos(view.transform.matrix));
+  gl.uniform1f(P.u.uW,A.wall.W); gl.uniform1f(P.u.uH,A.wall.H); gl.uniform1f(P.u.uGain,0.12); gl.uniform1f(P.u.uFlip,flipY()?1:0);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  gl.bindTexture(gl.TEXTURE_2D,null);
+  A.hasMosaic=true; A.recFrames++; A.dirty=true;
+}
+function hudInfo(){
+  const now=performance.now(); const r=$('readout');
+  let level=null;
+  if(A.step!=='tools'){
+    if(now-A.lastHud>150){ A.lastHud=now; r.textContent=A.hit?'':'Looking for surfaces… move the phone slowly'; const b=$('placeBtn'); if(b&&A.step!=='top') b.disabled=!A.hit; }
+    return null;
+  }
+  if(!A.target){ if(now-A.lastHud>150){A.lastHud=now;r.textContent='Point at the wall';} return null; }
+  const p=A.target, inside=p[0]>=-0.02&&p[0]<=A.wall.W+0.02&&p[1]>=-0.02&&p[1]<=A.wall.H+0.02;
+  let d=null;
+  if(A.tool==='check'||A.wall.features.length){ d=describe(A.wall,p); level=d.level; }
+  if(now-A.lastHud>120){
+    A.lastHud=now;
+    if(!inside) r.innerHTML='Outside this wall';
+    else if(A.tool==='check') r.innerHTML=`<span style="color:var(--${d.level})">${d.status}</span><br>${d.free}<br><small>${d.pos}</small>`;
+    else {
+      let extra='';
+      if(A.pending&&A.pending.pts.length){ const q=A.pending.pts[A.pending.pts.length-1]; extra=`<br><small>${mm2(Math.hypot(p[0]-q[0],p[1]-q[1]))} from last point</small>`; }
+      r.innerHTML=`${d0(p)}${extra}`+(A.recording?`<br><small style="color:#ff8a8a">● filming — move slowly</small>`:'');
+    }
+  }
+  if(A.tool!=='check') level=null;
+  return level;
+}
+const d0=p=>`${mm2(Math.max(0,p[0]))} from corner 1 · ${mm2(Math.max(0,p[1]))} up`;
+
+/* ---------- start ---------- */
+checkSupport().then(renderHome).catch(e=>{console.error(e);renderHome();});
+if(new URLSearchParams(location.search).has('flip')){ try{localStorage.setItem('wsl-flip',new URLSearchParams(location.search).get('flip'));}catch(e){} }
+</script>
+</body>
+</html>
