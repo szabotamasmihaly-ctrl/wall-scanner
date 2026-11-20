@@ -16,6 +16,30 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
     @Published private(set) var coverage: Double = 0
     @Published private(set) var videoHint: String?
     private var mosaic: WallMosaic?
+
+    /// Marking pipes / cables / rebar directly in AR while they are visible.
+    enum MarkTool: String, CaseIterable, Identifiable { case off = "Off", spot = "Spot", run = "Run"; var id: String { rawValue } }
+    @Published var markTool: MarkTool = .off { didSet { pendingRun = []; redrawMarks() } }
+    @Published var markKind: FeatureKind = .pipe
+    @Published private(set) var features: [WallFeature] = []
+    @Published private(set) var pendingRun: [WallPoint] = []
+    private let markAnchor = AnchorEntity(world: matrix_identity_float4x4)
+
+    /// Optional link to a building: measure 2+ of its known points in this same session.
+    @Published var linkedBuildingID: UUID? { didSet { if oldValue != linkedBuildingID { observations = [] } } }
+    @Published private(set) var observations: [ControlObservation] = []
+
+    func markKnownPoint(_ id: UUID) {
+        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        guard let p = ARSupport.worldPoint(at: center, in: arView) else {
+            message = "No surface under the crosshair. Aim at the known point and try again."
+            return
+        }
+        observations.append(ControlObservation(controlPointID: id, position: Vec3(p)))
+        let m = ARSupport.marker(color: .systemGreen)
+        m.position = p
+        markAnchor.addChild(m)
+    }
     @Published private(set) var width: Float = 0
     @Published private(set) var trackingText = "Starting…"
     @Published private(set) var mappingStatus: ARFrame.WorldMappingStatus = .notAvailable
@@ -34,6 +58,7 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
         super.init()
         arView.session.delegate = self
         arView.scene.addAnchor(previewAnchor)
+        arView.scene.addAnchor(markAnchor)
         arView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap(_:))))
         applyMeshOption()
     }
@@ -69,6 +94,10 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
         coverage = 0
         cornerA = nil
         wallTransform = nil
+        features = []
+        pendingRun = []
+        observations = []
+        markTool = .off
         width = 0
         step = .tapFirstCorner
         previewAnchor.children.removeAll()
@@ -84,7 +113,10 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
 
     @objc private func handleTap(_ g: UITapGestureRecognizer) {
         let point = g.location(in: arView)
-        guard step != .adjust else { return }
+        if step == .adjust {
+            markAt(point)
+            return
+        }
         guard let hit = ARSupport.worldPoint(at: point, in: arView) else {
             message = "Couldn't find a surface there. Aim at the corner where the wall meets the floor."
             return
@@ -108,6 +140,66 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
             rebuildPreview()
         case .adjust:
             break
+        }
+    }
+
+    // MARK: - AR marking
+
+    private func markAt(_ screenPoint: CGPoint) {
+        guard markTool != .off, let t = wallTransform,
+              let ray = arView.ray(through: screenPoint),
+              let hit = WallGeometry.intersect(rayOrigin: ray.origin, direction: ray.direction, frame: t) else { return }
+        let p = WallGeometry.wallPoint(fromWorld: hit, in: t)
+        guard p.x >= -0.05, p.y >= -0.05, p.x <= Double(width) + 0.05, p.y <= Double(height) + 0.05 else {
+            message = "That point is outside the wall frame."
+            return
+        }
+        switch markTool {
+        case .spot: features.append(WallFeature(kind: markKind, points: [p]))
+        case .run: pendingRun.append(p)
+        case .off: break
+        }
+        redrawMarks()
+    }
+
+    func finishRun() {
+        guard pendingRun.count >= 2 else { return }
+        features.append(WallFeature(kind: markKind, points: pendingRun))
+        pendingRun = []
+        redrawMarks()
+    }
+
+    func undoMark() {
+        if !pendingRun.isEmpty { pendingRun.removeLast() } else if !features.isEmpty { features.removeLast() }
+        redrawMarks()
+    }
+
+    private func redrawMarks() {
+        markAnchor.children.removeAll()
+        guard let t = wallTransform else { return }
+        func dot(_ p: WallPoint, _ color: UIColor) {
+            let m = ARSupport.marker(color: color)
+            m.scale = SIMD3<Float>(repeating: 0.7)
+            m.position = WallGeometry.worldPoint(p, in: t) + SIMD3<Float>(t.columns.2.x, t.columns.2.y, t.columns.2.z) * 0.01
+            markAnchor.addChild(m)
+        }
+        for f in features {
+            // Dots every ~5 cm along runs, so the line is visible in AR.
+            if f.points.count == 1 { dot(f.points[0], f.kind.uiColor); continue }
+            for i in 0..<(f.points.count - 1) {
+                let a = f.points[i], b = f.points[i + 1]
+                let n = max(1, Int(hypot(b.x - a.x, b.y - a.y) / 0.05))
+                for k in 0...n {
+                    let u = Double(k) / Double(n)
+                    dot(WallPoint(x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u), f.kind.uiColor)
+                }
+            }
+        }
+        for p in pendingRun { dot(p, .systemYellow) }
+        for o in observations {
+            let m = ARSupport.marker(color: .systemGreen)
+            m.position = o.position.simd
+            markAnchor.addChild(m)
         }
     }
 
@@ -149,6 +241,13 @@ final class ScanController: NSObject, ObservableObject, ARSessionDelegate {
             ReferencePoint(name: "Bottom-right corner", wallPosition: WallPoint(x: Double(width), y: 0))
         ]
         record.hasPhoto = true
+        record.features = features
+        if let b = linkedBuildingID, !observations.isEmpty {
+            record.buildingID = b
+            record.controlObservations = observations
+            record.frameOrigin = Vec3(SIMD3<Float>(t.columns.3.x, t.columns.3.y, t.columns.3.z))
+            record.frameAxisX = Vec3(SIMD3<Float>(t.columns.0.x, t.columns.0.y, t.columns.0.z))
+        }
         store.savePhoto(photo, for: record.id)
 
         // 2. Anchor the wall in the session so it is stored inside the world map.

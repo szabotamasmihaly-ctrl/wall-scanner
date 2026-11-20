@@ -104,6 +104,7 @@ struct OverlayView: View {
                         Toggle("Photo", isOn: $controller.options.showPhoto)
                         Toggle("Marks", isOn: $controller.options.showFeatures)
                         Toggle("Grid", isOn: $controller.options.showGrid)
+                        Toggle("No-drill", isOn: $controller.options.showSafeZones)
                     }
                     .toggleStyle(.button)
                     .font(.caption)

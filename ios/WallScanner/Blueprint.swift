@@ -6,17 +6,20 @@ struct BlueprintModel {
     struct Feature: Identifiable { let id = UUID(); let kind: BuildingFeatureKind; let points: [PlanPoint] }
     struct Surface: Identifiable { let id = UUID(); let kind: SurfaceKind; let a: PlanPoint; let b: PlanPoint; let height: Double }
     struct Dimension: Identifiable { let id = UUID(); let a: PlanPoint; let b: PlanPoint; let offset: Double }
+    struct WallLine: Identifiable { let id: UUID; let name: String; let a: PlanPoint; let b: PlanPoint; let features: Int }
 
     var corners: [Corner] = []
     var outline: [PlanPoint] = []
     var features: [Feature] = []
     var surfaces: [Surface] = []
     var dimensions: [Dimension] = []
+    var walls: [WallLine] = []
+    var unplacedWalls: [String] = []
     var unplacedSessions: [String] = []
     var frame = ""
     var residualNote = ""
 
-    init(building b: Building) {
+    init(building b: Building, walls wallRecords: [WallRecord] = []) {
         let r = BuildingSolver.solve(b)
         frame = r.frameDescription
         for cp in b.controlPoints {
@@ -27,6 +30,15 @@ struct BlueprintModel {
             guard let t = r.transforms[s.id] else { unplacedSessions.append(s.name); continue }
             for f in s.features { features.append(Feature(kind: f.kind, points: f.points.map(t.apply))) }
             for sf in s.surfaces { surfaces.append(Surface(kind: sf.kind, a: t.apply(sf.start), b: t.apply(sf.end), height: sf.height)) }
+        }
+        // Scanned walls (pipes, cables, rebar) linked to this building.
+        for w in wallRecords where w.buildingID == b.id {
+            guard let obs = w.controlObservations, let o = w.frameOrigin, let ax = w.frameAxisX else { continue }
+            let pairs = obs.compactMap { ob in r.coordinates[ob.controlPointID].map { (ob.position, $0) } }
+            guard Set(obs.filter { r.coordinates[$0.controlPointID] != nil }.map(\.controlPointID)).count >= 2,
+                  let (t, _) = BuildingSolver.fit(pairs) else { unplacedWalls.append(w.name); continue }
+            let end = Vec3(x: o.x + ax.x * w.width, y: o.y + ax.y * w.width, z: o.z + ax.z * w.width)
+            walls.append(WallLine(id: w.id, name: w.name, a: t.apply(o), b: t.apply(end), features: w.features.count))
         }
         let worst = r.residuals.values.max() ?? 0
         if worst > 0 { residualNote = String(format: "Largest misfit between scans: %.1f cm", worst * 100) }
@@ -64,7 +76,7 @@ struct BlueprintModel {
     }
 
     var allPoints: [PlanPoint] {
-        corners.map(\.p) + features.flatMap(\.points) + surfaces.flatMap { [$0.a, $0.b] }
+        corners.map(\.p) + features.flatMap(\.points) + surfaces.flatMap { [$0.a, $0.b] } + walls.flatMap { [$0.a, $0.b] }
     }
 
     var bounds: (minE: Double, minN: Double, maxE: Double, maxN: Double)? {
@@ -140,6 +152,15 @@ struct BlueprintCanvas: View {
                     let c = vp.screen(q)
                     ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)), with: .color(color))
                 }
+            }
+
+            // Scanned walls with what is inside them.
+            for w in model.walls {
+                let a = vp.screen(w.a), b = vp.screen(w.b)
+                var p = Path(); p.move(to: a); p.addLine(to: b)
+                ctx.stroke(p, with: .color(.pink.opacity(0.8)), style: StrokeStyle(lineWidth: max(5, 0.2 * vp.scale), lineCap: .round))
+                let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+                ctx.draw(Text("\(w.name) · \(w.features) marks").font(.caption2).foregroundColor(.pink), at: CGPoint(x: mid.x, y: mid.y + 12))
             }
 
             // Chain dimensions.
@@ -227,6 +248,7 @@ struct BlueprintCanvas: View {
 
 struct BlueprintView: View {
     @EnvironmentObject private var store: BuildingStore
+    @EnvironmentObject private var wallStore: WallStore
     let buildingID: UUID
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
@@ -236,7 +258,7 @@ struct BlueprintView: View {
     @State private var exported: UIImage?
 
     var body: some View {
-        let model = BlueprintModel(building: store.building(buildingID) ?? Building(name: ""))
+        let model = BlueprintModel(building: store.building(buildingID) ?? Building(name: ""), walls: wallStore.walls)
         VStack(spacing: 0) {
             GeometryReader { geo in
                 BlueprintCanvas(model: model, zoom: zoom * pinch,
@@ -265,6 +287,10 @@ struct BlueprintView: View {
                 }
                 Text("Frame: \(model.frame)").font(.caption2).foregroundStyle(.secondary)
                 if !model.residualNote.isEmpty { Text(model.residualNote).font(.caption2).foregroundStyle(.secondary) }
+                if !model.unplacedWalls.isEmpty {
+                    Text("Walls not placed yet (need 2 known points with coordinates): " + model.unplacedWalls.joined(separator: ", "))
+                        .font(.caption2).foregroundStyle(.orange)
+                }
                 if !model.unplacedSessions.isEmpty {
                     Text("Not placed yet (needs 2 known points): " + model.unplacedSessions.joined(separator: ", "))
                         .font(.caption2).foregroundStyle(.orange)

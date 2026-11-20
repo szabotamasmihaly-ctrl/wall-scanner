@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WallListView: View {
     @EnvironmentObject private var store: WallStore
+    @EnvironmentObject private var buildings: BuildingStore
     @State private var path: [UUID] = []
     @State private var scanning = false
 
@@ -42,6 +43,7 @@ struct WallListView: View {
             .fullScreenCover(isPresented: $scanning) {
                 ScanView { id in path = [id] }
                     .environmentObject(store)
+                    .environmentObject(buildings)
             }
         }
     }

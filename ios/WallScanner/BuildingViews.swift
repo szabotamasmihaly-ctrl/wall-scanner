@@ -52,6 +52,7 @@ struct BuildingListView: View {
 
 struct BuildingDetailView: View {
     @EnvironmentObject private var store: BuildingStore
+    @EnvironmentObject private var wallStore: WallStore
     let buildingID: UUID
     @State private var measuring = false
     @State private var scanningRooms = false
@@ -81,6 +82,26 @@ struct BuildingDetailView: View {
                 }
 
                 Section {
+                    let surveyed = b.controlPoints.filter { $0.surveyed != nil }.count
+                    HStack {
+                        Image(systemName: surveyed >= 4 ? "checkmark.seal.fill" : "mappin.and.ellipse")
+                            .foregroundStyle(surveyed >= 4 ? .green : .orange)
+                        Text("\(surveyed) of 4 surveyor points entered")
+                    }
+                    Button {
+                        editing = ControlPoint(name: "Survey point \(surveyed + 1)", isBuildingCorner: false,
+                                               surveyed: SurveyedCoordinate(easting: 0, northing: 0, elevation: 0,
+                                                                            system: b.controlPoints.compactMap { $0.surveyed?.system }.first ?? "EOV (EPSG:23700)"))
+                    } label: {
+                        Label("Add surveyed point", systemImage: "plus.circle")
+                    }
+                } header: {
+                    Text("Site reference points")
+                } footer: {
+                    Text("Enter the coordinates the surveyor gave you for 4 fixed points (corner pegs, building corners, nails). Then measure each of them with the phone: everything you scan is placed on that grid, and the fit shows how well each point agrees. With 3 or more, a bad point stands out in red.")
+                }
+
+                Section {
                     ForEach(b.controlPoints) { cp in
                         Button { editing = cp } label: {
                             HStack {
@@ -90,6 +111,11 @@ struct BuildingDetailView: View {
                                     if let p = solved.coordinates[cp.id] {
                                         Text(String(format: "E %.3f  N %.3f  H %.3f", p.e, p.n, p.h))
                                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                        if let err = solved.pointResiduals[cp.id] {
+                                            Text(String(format: "Fit %.1f cm", err * 100))
+                                                .font(.caption2.monospacedDigit())
+                                                .foregroundStyle(err < 0.03 ? .green : (err < 0.10 ? .orange : .red))
+                                        }
                                     } else {
                                         Text("No coordinates yet").font(.caption).foregroundStyle(.orange)
                                     }
@@ -134,6 +160,24 @@ struct BuildingDetailView: View {
                 }
 
                 Section {
+                    let linked = wallStore.walls.filter { $0.buildingID == b.id }
+                    if linked.isEmpty {
+                        Text("No walls linked yet. When scanning a wall, pick this building and measure 2 known points.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    ForEach(linked) { w in
+                        HStack {
+                            Image(systemName: "square.split.bottomrightquarter").foregroundStyle(.pink)
+                            Text(w.name)
+                            Spacer()
+                            Text("\(w.features.count) marks").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Scanned walls")
+                }
+
+                Section {
                     ShareLink(item: store.jsonURL(b.id)) {
                         Label("Export building data (JSON)", systemImage: "square.and.arrow.up")
                     }
@@ -151,6 +195,7 @@ struct BuildingDetailView: View {
                 ControlPointEditor(point: cp) { updated in
                     update { b in
                         if let i = b.controlPoints.firstIndex(where: { $0.id == updated.id }) { b.controlPoints[i] = updated }
+                        else { b.controlPoints.append(updated) }
                     }
                 }
             }

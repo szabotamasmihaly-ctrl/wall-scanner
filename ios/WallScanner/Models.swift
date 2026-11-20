@@ -88,6 +88,15 @@ struct WallRecord: Codable, Identifiable, Hashable {
     var hasPhoto = false
     var hasWorldMap = false
 
+    // Link to a building (all optional so older saved walls still load).
+    /// The building whose known points were measured during this wall scan.
+    var buildingID: UUID?
+    /// Known points measured in the same AR session as the wall.
+    var controlObservations: [ControlObservation]?
+    /// Wall frame in that session: bottom-left corner and the direction along the wall.
+    var frameOrigin: Vec3?
+    var frameAxisX: Vec3?
+
     /// Distance in meters from a wall point to the nearest feature, and which feature.
     func nearestFeature(to p: WallPoint) -> (WallFeature, Double)? {
         var best: (WallFeature, Double)?

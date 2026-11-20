@@ -27,6 +27,9 @@ struct SolveResult {
     var coordinates: [UUID: PlanPoint] = [:]
     /// RMS misfit (metres) of each placed session against known control points.
     var residuals: [UUID: Double] = [:]
+    /// Largest misfit (metres) of each known point across the sessions that saw it.
+    /// Large values point to a mis-tapped point or a wrong survey coordinate.
+    var pointResiduals: [UUID: Double] = [:]
     /// Human-readable description of the plan frame.
     var frameDescription = "Not defined yet"
 }
@@ -81,6 +84,13 @@ enum BuildingSolver {
                 guard let (t, rms) = fit(known.map { ($0.position, r.coordinates[$0.controlPointID]!) }) else { continue }
                 r.transforms[s.id] = t
                 r.residuals[s.id] = rms
+                if Set(known.map(\.controlPointID)).count >= 3 {
+                    for o in known {
+                        let p = t.apply(o.position), q = r.coordinates[o.controlPointID]!
+                        let err = hypot(p.e - q.e, p.n - q.n)
+                        r.pointResiduals[o.controlPointID] = max(r.pointResiduals[o.controlPointID] ?? 0, err)
+                    }
+                }
                 // Give coordinates to control points first seen in this session.
                 var newOnes: [UUID: [PlanPoint]] = [:]
                 for o in s.observations where r.coordinates[o.controlPointID] == nil {

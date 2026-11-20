@@ -15,7 +15,11 @@ the whole building from LiDAR measurements tied to fixed known points).
    wall (about 1 m away). Every good video frame is straightened onto the wall and painted into
    one to-scale wall picture; a coverage bar shows how much of the wall you have filmed.
    Frames that are too far, too oblique or badly tracked are skipped automatically.
-   (Or skip recording and save a single shot.) The app:
+   (Or skip recording and save a single shot.)
+   While the wall is open you can also **mark in AR**: pick Spot or Run and a type (pipe,
+   electrical, rebar, void), then tap on the wall in the camera view; marks are drawn in place.
+   To put the wall on the building blueprint, pick the building and measure 2 of its known
+   points with the green crosshair in the same scan. The app:
    - builds the straightened, true-to-scale wall picture,
    - saves an ARKit room map (uses LiDAR mesh when available) so it can find the wall again,
    - stores the wall size and the two corners as reference points.
@@ -24,6 +28,7 @@ the whole building from LiDAR measurements tied to fixed known points).
    - *Reference points* (optionally with surveyed coordinates for later georeferencing).
 3. **Show on the wall (AR)** – opens the camera, recognises the room and lays the
    photo + marks over the real wall. Controls: transparency, photo / marks / grid toggles.
+   - **No-drill zones**: red bands within 5 cm and orange bands within 15 cm of every mark.
    - Crosshair readout: position (cm from left corner, cm above floor) and distance to
      the nearest mark. Green = more than 15 cm, orange = 5–15 cm, red = under 5 cm.
    - If the room is not recognised (likely after plastering/painting, because it looks
@@ -34,6 +39,11 @@ Data is stored on the phone in the app's Documents/Walls folder (one folder per 
 `wall.json`, `photo.jpg`, `map.arworldmap`). "Export wall data (JSON)" shares the record.
 
 ## Buildings tab: blueprint from known points
+
+**Site setup.** Under *Site reference points*, add the 4 points your surveyor gave you
+(name + easting/northing/elevation, e.g. EOV). Measure each with the phone during your scans.
+Every scan, room and wall is then placed on the survey grid, and each point shows its fit
+in cm (green < 3 cm, orange < 10 cm, red = probably mis-tapped or a wrong coordinate).
 
 1. **New building**, then **Measure outside with LiDAR**. Aim the crosshair and add:
    - **Known points**: outside building corners at ground level, survey marks, door frame corners.
@@ -49,7 +59,8 @@ Data is stored on the phone in the app's Documents/Walls folder (one folder per 
 3. **Blueprint**: building outline, windows and doors with chain dimensions
    (corner → window → window → corner), interior walls, known points, north arrow and scale bar.
    Pinch/drag to move, tap two points to measure between them, export as an image.
-   Each RoomPlan scan can also be shared as a 3D USDZ model.
+   Each RoomPlan scan can also be shared as a 3D USDZ model. Walls scanned during construction
+   and linked to the building appear as pink lines labelled with how many pipes/cables they hold.
 
 **Coordinates.** If no known point has surveyed coordinates, the first session with two known
 points defines a local frame (first point = 0/0, second due east). Enter surveyed coordinates
@@ -125,7 +136,6 @@ placed into one building model and matched against BIM/CAD data.
 
 ## Possible next steps
 
-- Link each scanned wall to its building so walls appear on the blueprint.
 - Several photos per wall stitched together; video/mesh capture for larger walls.
 - Auto-detect pipes/cables in the photo with a Vision/Core ML model.
 - Cloud sync and sharing between construction team and owner.

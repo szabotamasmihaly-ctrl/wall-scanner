@@ -8,6 +8,8 @@ enum OverlayRenderer {
         var showPhoto = true
         var showFeatures = true
         var showGrid = true
+        /// Red (< 5 cm) and orange (< 15 cm) bands around every feature: where not to drill.
+        var showSafeZones = true
     }
 
     static func render(wall: WallRecord, photo: UIImage?, options: Options) -> UIImage {
@@ -65,6 +67,28 @@ enum OverlayRenderer {
                 cg.setStrokeColor(UIColor.cyan.cgColor)
                 cg.setLineWidth(max(3, ppm * 0.01))
                 cg.stroke(CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2))
+            }
+
+            if options.showSafeZones {
+                for (radius, color) in [(0.15, UIColor.systemOrange.withAlphaComponent(0.28)),
+                                        (0.05, UIColor.systemRed.withAlphaComponent(0.45))] {
+                    cg.setStrokeColor(color.cgColor)
+                    cg.setFillColor(color.cgColor)
+                    cg.setLineCap(.round)
+                    cg.setLineJoin(.round)
+                    let r = ppm * CGFloat(radius)
+                    for f in wall.features {
+                        if f.points.count == 1 {
+                            let c = px(f.points[0])
+                            cg.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+                        } else if f.points.count > 1 {
+                            cg.setLineWidth(r * 2)
+                            cg.move(to: px(f.points[0]))
+                            for p in f.points.dropFirst() { cg.addLine(to: px(p)) }
+                            cg.strokePath()
+                        }
+                    }
+                }
             }
 
             if options.showFeatures {

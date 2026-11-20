@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ScanView: View {
     @EnvironmentObject private var store: WallStore
+    @EnvironmentObject private var buildings: BuildingStore
+    @State private var choosingKnownPoint = false
     @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = ScanController()
     @State private var name = ""
@@ -25,6 +27,18 @@ struct ScanView: View {
                 ProgressView("Saving wall…")
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .overlay {
+            if controller.linkedBuildingID != nil && controller.step == .adjust && controller.markTool == .off {
+                Crosshair(color: .green)
+            }
+        }
+        .sheet(isPresented: $choosingKnownPoint) {
+            if let id = controller.linkedBuildingID {
+                ControlPointPicker(buildingID: id) { cp in controller.markKnownPoint(cp) }
+                    .environmentObject(buildings)
+                    .presentationDetents([.medium, .large])
             }
         }
         .onAppear { controller.start() }
@@ -104,6 +118,56 @@ struct ScanView: View {
                         ProgressView(value: controller.coverage)
                         if let hint = controller.videoHint {
                             Text(hint).font(.caption2).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Mark in AR").font(.caption.bold())
+                        Picker("Mark", selection: $controller.markTool) {
+                            ForEach(ScanController.MarkTool.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    if controller.markTool != .off {
+                        HStack {
+                            Picker("Type", selection: $controller.markKind) {
+                                ForEach(FeatureKind.allCases) { k in Label(k.label, systemImage: k.symbol).tag(k) }
+                            }
+                            .pickerStyle(.menu)
+                            Spacer()
+                            Button("Undo") { controller.undoMark() }.font(.caption)
+                            if controller.markTool == .run {
+                                Button("Finish run") { controller.finishRun() }
+                                    .font(.caption).disabled(controller.pendingRun.count < 2)
+                            }
+                        }
+                        Text(controller.markTool == .spot ? "Tap a socket, box or hole on the wall." : "Tap points along the pipe, cable or bar, then Finish run.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    if !controller.features.isEmpty {
+                        Text("\(controller.features.count) feature(s) marked").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    if !buildings.buildings.isEmpty {
+                        HStack {
+                            Picker("Building", selection: $controller.linkedBuildingID) {
+                                Text("No building").tag(UUID?.none)
+                                ForEach(buildings.buildings) { b in Text(b.name).tag(UUID?.some(b.id)) }
+                            }
+                            .pickerStyle(.menu)
+                            Spacer()
+                            if controller.linkedBuildingID != nil {
+                                Button {
+                                    choosingKnownPoint = true
+                                } label: {
+                                    Label("Known point (\(controller.observations.count))", systemImage: "scope")
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        if controller.linkedBuildingID != nil {
+                            Text("Aim the green crosshair at 2 known points of the building (corners, survey marks, door frame) so this wall appears on the blueprint.")
+                                .font(.caption2).foregroundStyle(.secondary)
                         }
                     }
                 }
