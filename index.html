@@ -3,112 +3,290 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#10161c">
-<title>Wall Scanner Live</title>
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Scan walls while they are open. See pipes and cables through the finished wall.">
+<title>Wall Scanner</title>
 <style>
-:root{--bg:#10161c;--card:#19222b;--card2:#232f3a;--fg:#e8eef4;--muted:#94a3b1;--line:#30404e;--acc:#4f9bff;--ok:#3ccf7a;--warn:#ffb020;--bad:#ff5a5a}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --fill:rgba(120,120,128,.12); --fill2:rgba(120,120,128,.2);
+  --label:#000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.3); --sep:rgba(60,60,67,.29);
+  --blue:#007aff; --green:#34c759; --orange:#ff9500; --red:#ff3b30; --yellow:#ffcc00; --indigo:#5856d6; --teal:#30b0c7; --purple:#af52de;
+  --nav:rgba(242,242,247,.8);
+  --r:12px; --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#000; --card:#1c1c1e; --fill:rgba(120,120,128,.24); --fill2:rgba(120,120,128,.36);
+  --label:#fff; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3); --sep:rgba(84,84,88,.6);
+  --blue:#0a84ff; --green:#30d158; --orange:#ff9f0a; --red:#ff453a; --yellow:#ffd60a; --indigo:#5e5ce6; --teal:#40c8e0; --purple:#bf5af2;
+  --nav:rgba(18,18,20,.8);
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--label);font:17px/1.35 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
 [hidden]{display:none!important}
-button{font:inherit;color:inherit;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;cursor:pointer;touch-action:manipulation}
-button.pri{background:var(--acc);border-color:var(--acc);color:#06121f;font-weight:700}
-button.bad{color:var(--bad)}
-button:disabled{opacity:.45}
-input[type=text]{font:inherit;color:inherit;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
-.wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
-header.top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:3}
-header.top h1{font-size:1.15rem;margin:0;flex:1}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
-.muted{color:var(--muted)}.small{font-size:.85rem}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.row>button{flex:1 1 auto}
-.wallitem{display:flex;gap:12px;align-items:center;padding:10px;border-radius:12px;background:var(--card2);margin:8px 0;cursor:pointer}
-.wallitem img,.wallitem .ph{width:72px;height:48px;object-fit:cover;border-radius:8px;background:#0b1015;flex:none}
-.wallitem b{display:block}
-.banner{border-radius:12px;padding:12px;margin:12px 0;background:#3a2a10;border:1px solid #6b4a12}
-.banner.ok{background:#12301f;border-color:#1f6b40}
-canvas#wall2d{width:100%;border-radius:10px;background:#0b1015;display:block;touch-action:none}
-.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.85rem;margin-top:8px}
-.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.flist div{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
-.flist button{padding:6px 10px}
-ol.steps{padding-left:20px;margin:6px 0}ol.steps li{margin:4px 0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation}
+svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.page{min-height:100vh;padding-bottom:calc(env(safe-area-inset-bottom) + 32px)}
+.content{max-width:640px;margin:0 auto;padding:0 16px}
+
+/* navigation bar */
+.nav{position:sticky;top:0;z-index:10;background:var(--nav);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  padding:env(safe-area-inset-top) max(8px,env(safe-area-inset-right)) 0 max(8px,env(safe-area-inset-left));border-bottom:.5px solid transparent;transition:border-color .2s}
+.nav.scrolled{border-bottom-color:var(--sep)}
+.navrow{height:44px;display:flex;align-items:center;justify-content:space-between;max-width:656px;margin:0 auto}
+.navtitle{position:absolute;left:50%;transform:translateX(-50%);font-weight:600;font-size:17px;opacity:0;transition:opacity .2s;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav.scrolled .navtitle{opacity:1}
+.navbtn{color:var(--blue);display:flex;align-items:center;gap:2px;height:44px;padding:0 8px;font-size:17px}
+.navbtn svg.i{width:24px;height:24px}
+.navbtn.round{width:44px;justify-content:center}
+.largetitle{font-size:34px;font-weight:700;letter-spacing:.01em;margin:2px 0 10px;line-height:1.15;word-break:break-word}
+
+/* grouped lists */
+.sechead{font-size:13px;text-transform:uppercase;color:var(--label2);margin:26px 16px 7px;letter-spacing:0}
+.secfoot{font-size:13px;color:var(--label2);margin:7px 16px 0}
+.group{background:var(--card);border-radius:var(--r);overflow:hidden}
+.cell{display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 16px;position:relative;width:100%;text-align:left}
+.cell+.cell:before{content:"";position:absolute;top:0;left:var(--inset,16px);right:0;border-top:.5px solid var(--sep)}
+button.cell:active{background:var(--fill)}
+.cell .grow{flex:1;min-width:0}
+.cell .t{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .s{display:block;font-size:15px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .v{color:var(--label2)}
+.chev{color:var(--label3);width:14px;height:14px;stroke-width:3}
+.thumb{width:64px;height:44px;border-radius:8px;object-fit:cover;background:var(--fill);flex:none}
+.iconbox{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:#fff;flex:none}
+.iconbox svg.i{width:18px;height:18px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.cell.destructive{color:var(--red);justify-content:center}
+.trash{color:var(--red);width:44px;height:44px;display:grid;place-items:center;margin:-10px -12px -10px 0}
+
+/* buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border-radius:14px;font-weight:600;font-size:17px;transition:transform .1s,opacity .1s}
+.btn:active{transform:scale(.98);opacity:.85}
+.btn.filled{background:var(--blue);color:#fff}
+.btn.tinted{background:color-mix(in srgb,var(--blue) 15%,transparent);color:var(--blue)}
+.btn:disabled{opacity:.4}
+.btnrow{display:flex;gap:12px;margin-top:16px}
+
+/* story hero */
+.hero{background:var(--card);border-radius:20px;overflow:hidden;margin-top:4px}
+.hero .story{aspect-ratio:16/11}
+.hero .herotext{padding:14px 16px 16px;display:flex;align-items:center;gap:12px}
+.hero h2{font-size:20px;margin:0 0 2px;font-weight:700}
+.hero p{margin:0;color:var(--label2);font-size:15px}
+.playbtn{width:44px;height:44px;border-radius:50%;background:var(--fill);color:var(--blue);display:grid;place-items:center;flex:none}
+.notice{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:var(--r);padding:14px 16px;margin-top:16px;font-size:15px}
+.notice b{display:block;font-size:17px;margin-bottom:2px}
+.notice .iconbox{background:var(--orange)}
+.empty{text-align:center;color:var(--label2);padding:28px 24px;font-size:15px}
+.empty b{display:block;color:var(--label);font-size:20px;margin-bottom:6px}
+
+/* story animation */
+.story{position:relative;background:linear-gradient(#dfe7ef,#c9d5e0);overflow:hidden}
+@media (prefers-color-scheme: dark){.story{background:linear-gradient(#1d2733,#141b24)}}
+.story svg{position:absolute;inset:0;width:100%;height:100%}
+.caption{position:absolute;left:0;right:0;bottom:0;padding:28px 16px 12px;background:linear-gradient(transparent,rgba(0,0,0,.55));color:#fff;transition:opacity .4s}
+.caption b{display:block;font-size:17px}
+.caption span{font-size:14px;opacity:.9}
+.storydots{position:absolute;top:10px;left:12px;right:12px;display:flex;gap:4px}
+.storydots i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.45);overflow:hidden;position:relative}
+.storydots i b{position:absolute;inset:0;background:#fff;transform-origin:left;transform:scaleX(0)}
+
+/* onboarding (full screen) */
+#onboard{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 16px)}
+#onboard .story{flex:1;border-radius:0 0 28px 28px}
+#onboard .story .caption{display:none}
+#onboard .obtext{padding:24px 24px 8px;text-align:center;min-height:132px}
+#onboard h1{font-size:28px;font-weight:700;margin:0 0 8px;letter-spacing:.01em}
+#onboard p{margin:0;color:var(--label2);font-size:17px}
+#onboard .obbtns{padding:8px 24px 0;max-width:480px;width:100%;margin:0 auto}
+#onboard .skip{position:absolute;top:calc(env(safe-area-inset-top) + 18px);right:16px;z-index:2;color:#fff;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:16px;padding:6px 14px;font-size:15px;font-weight:600}
+#onboard .story .storydots{top:calc(14px);right:90px}
+
+/* wall page */
+.wallcard{background:var(--card);border-radius:var(--r);overflow:hidden}
+canvas#wall2d{width:100%;display:block;touch-action:none;background:#1b2028}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 0 12px}
+.seg button{flex:1;height:30px;border-radius:7px;font-size:13px;font-weight:600}
+.seg button.on{background:var(--card);box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04)}
+.tapinfo{padding:12px 16px;font-size:15px;color:var(--label2);border-top:.5px solid var(--sep)}
+.tapinfo b{color:var(--label);display:block;font-size:17px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--label2);padding:0 16px 12px}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:50%}
+
+/* sheets & alerts */
+.scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .25s}
+.scrim.show{opacity:1}
+.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:14px 14px 0 0;padding:8px 16px calc(env(safe-area-inset-bottom) + 20px);transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.9,.3,1)}
+.scrim.show .sheet{transform:none}
+.grabber{width:36px;height:5px;border-radius:3px;background:var(--label3);margin:0 auto 10px}
+.sheethead{display:flex;align-items:center;justify-content:space-between;height:44px;margin-bottom:8px}
+.sheethead b{font-size:17px}
+.sheethead button{color:var(--blue);font-size:17px;padding:0 4px;height:44px}
+.sheet input{width:100%;font:inherit;background:var(--card);color:var(--label);border:0;border-radius:10px;padding:12px 14px;outline:none}
+.sheet .tip{display:flex;gap:12px;align-items:flex-start;margin:16px 4px;color:var(--label2);font-size:15px}
+.scrim.alert{align-items:center}
+.alertbox{background:var(--card);width:270px;border-radius:14px;text-align:center;overflow:hidden;transform:scale(1.1);transition:transform .25s}
+.scrim.show .alertbox{transform:none}
+.alertbox .ab{padding:19px 16px 15px}
+.alertbox b{display:block;font-size:17px;margin-bottom:4px}
+.alertbox p{margin:0;font-size:13px}
+.alertbox .abtns{display:flex;border-top:.5px solid var(--sep)}
+.alertbox .abtns button{flex:1;height:44px;color:var(--blue);font-size:17px}
+.alertbox .abtns button+button{border-left:.5px solid var(--sep)}
+.alertbox .abtns button.bold{font-weight:600}
+.alertbox .abtns button.red{color:var(--red)}
+
 /* AR overlay */
-#ar{position:fixed;inset:0;display:none;font-size:15px;color:#fff;user-select:none;-webkit-user-select:none}
+#ar{position:fixed;inset:0;display:none;color:#fff;user-select:none;-webkit-user-select:none;font-family:var(--font)}
 #ar.on{display:block}
-#arTop{position:absolute;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 10px;background:linear-gradient(#000a,#0000);display:flex;gap:8px;align-items:flex-start}
-#arMsg{flex:1;font-weight:600;text-shadow:0 1px 3px #000}
-#arTop button{background:#000a;border-color:#fff4;padding:8px 12px}
-#cross{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none}
-#cross:before,#cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}
-#cross:before{left:21px;top:0;width:2px;height:44px}
-#cross:after{top:21px;left:0;height:2px;width:44px}
-#readout{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);background:#000b;border-radius:10px;padding:6px 10px;font-weight:600;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+.glass{background:rgba(30,30,30,.55);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%)}
+#arTop{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:12px;right:12px;display:flex;gap:10px;align-items:flex-start}
+.circ{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;color:#fff}
+.circ svg.i{width:20px;height:20px}
+#arCard{flex:1;border-radius:16px;padding:10px 14px;min-height:40px}
+#arStep{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.7}
+#arMsg{font-size:16px;font-weight:600;line-height:1.3}
+#reticle{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;pointer-events:none;--rc:#fff}
+#reticle:before{content:"";position:absolute;inset:0;border-radius:50%;border:2.5px solid var(--rc);box-shadow:0 0 0 1px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.25);transition:border-color .2s}
+#reticle:after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--rc);box-shadow:0 0 0 1px rgba(0,0,0,.3)}
+#readout{position:absolute;left:50%;top:calc(50% + 42px);transform:translateX(-50%);border-radius:14px;padding:8px 14px;font-size:15px;font-weight:600;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1.35}
 #readout:empty{display:none}
-#arBot{position:absolute;left:0;right:0;bottom:0;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 12px);background:linear-gradient(#0000,#000c 30%)}
-#arBot button{background:#1b2530e6;border-color:#ffffff30;padding:12px 10px}
-#arBot button.pri{background:var(--acc);color:#06121f}
-#arBot button.rec{background:#c62828;border-color:#ff8a8a;color:#fff}
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
-.chips button{flex:none;padding:8px 12px;border-radius:20px;font-size:.9rem}
-.chips button.sel{outline:2px solid #fff}
-.chips button i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-#arBot .row{flex-wrap:nowrap}
-#arBot .row>button{flex:1 1 0;min-width:0}
-#slider{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.85rem}
-#slider input{flex:1}
-#nudge{display:flex;gap:6px;margin-bottom:8px}
-#nudge button{flex:1;padding:8px}
-#toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:12px;font-weight:600;pointer-events:none;transition:opacity .3s;opacity:0}
+#readout small{font-weight:500;opacity:.8;font-size:13px}
+#toast{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 96px);transform:translate(-50%,-8px);border-radius:20px;padding:8px 16px;font-size:15px;font-weight:600;pointer-events:none;transition:opacity .25s,transform .25s;opacity:0;white-space:nowrap}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#arBot{position:absolute;left:0;right:0;bottom:0;padding:0 0 calc(env(safe-area-inset-bottom) + 18px);background:linear-gradient(transparent,rgba(0,0,0,.45))}
+#modes{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;padding:10px 50% 14px;scroll-snap-type:x mandatory;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+#modes::-webkit-scrollbar{display:none}
+#modes button{flex:none;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.85);scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+#modes button i{width:6px;height:6px;border-radius:50%;opacity:.0}
+#modes button.sel{color:var(--yellow)}
+#modes button.sel i{opacity:1}
+#controls{display:flex;align-items:center;justify-content:space-around;padding:0 24px;height:84px}
+#controls .side{width:64px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600;color:rgba(255,255,255,.9)}
+#controls .side .circ{width:48px;height:48px}
+#shutter{width:76px;height:76px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center;transition:transform .1s}
+#shutter:active{transform:scale(.92)}
+#shutter b{width:60px;height:60px;border-radius:50%;background:#fff;display:grid;place-items:center;color:#000}
+#shutter b svg.i{width:28px;height:28px;stroke-width:2.5}
+#shutter:disabled{opacity:.4}
+#shutter.rec b{background:var(--red);color:#fff;border-radius:12px;width:32px;height:32px}
+.recdot{width:18px;height:18px;border-radius:50%;background:var(--red)}
+.side.on .circ{background:var(--red)}
+.side.on .recdot{background:#fff;border-radius:4px;width:14px;height:14px}
+#pills{display:flex;justify-content:center;gap:8px;padding:0 16px 6px;flex-wrap:wrap}
+.pill{height:36px;border-radius:18px;padding:0 16px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;color:#fff}
+.pill.y{background:var(--yellow);color:#000}
+.pill input[type=range]{width:120px;accent-color:#fff}
+#nudge{display:flex;justify-content:center;gap:8px;padding:0 16px 8px}
+#nudge .circ{width:44px;height:44px}
 </style>
 </head>
 <body>
-<div id="app">
-  <header class="top"><h1 id="title">Wall Scanner Live</h1><button id="backBtn" hidden>Back</button></header>
 
-  <main class="wrap" id="home">
-    <div id="support" class="banner">Checking whether this phone supports live AR…</div>
-    <div class="card">
-      <b>How it works</b>
-      <ol class="steps small">
-        <li><b>While building:</b> open a new wall, point at its two bottom corners, then film the wall slowly while pipes, cables and rebar are still visible. Mark each one on the screen.</li>
-        <li><b>After plastering:</b> open the wall, point at the same two corners again. The saved picture and marks appear on the finished wall.</li>
-        <li>Aim at a spot to see how far the nearest pipe or cable is, and how much free space you have around it.</li>
-      </ol>
+<!-- Home -->
+<div class="page" id="home">
+  <div class="nav" id="homeNav"><div class="navrow"><span></span><span class="navtitle">Walls</span>
+    <button class="navbtn round" id="newWallTop" aria-label="New wall"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
+  <div class="content">
+    <h1 class="largetitle">Walls</h1>
+    <div class="hero">
+      <div class="story" id="heroStory"></div>
+      <div class="herotext"><div style="flex:1"><h2>How it works</h2><p>Watch the short intro</p></div>
+        <button class="playbtn" id="replayIntro" aria-label="Watch how it works"><svg class="i"><use href="#i-expand"/></svg></button></div>
     </div>
-    <div class="row"><button class="pri" id="newWallBtn">New wall</button><button id="importBtn">Import</button></div>
-    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <div id="support"></div>
+    <div class="sechead" id="wallsHead">My walls</div>
     <div id="wallList"></div>
-  </main>
-
-  <main class="wrap" id="wallView" hidden>
-    <div class="card">
-      <input type="text" id="wallName" aria-label="Wall name">
-      <div class="small muted" id="wallStats" style="margin-top:6px"></div>
-    </div>
-    <div class="row"><button class="pri" id="checkBtn">Check wall (camera)</button><button id="scanMoreBtn">Scan / add marks</button></div>
-    <div class="card">
-      <canvas id="wall2d"></canvas>
-      <div class="small" id="info2d" style="margin-top:8px">Tap the picture to see distances.</div>
-      <div class="legend" id="legend"></div>
-    </div>
-    <div class="card"><b>Marks</b><div class="flist" id="flist"></div></div>
-    <div class="row"><button id="exportBtn">Export / share</button><button class="bad" id="deleteBtn">Delete wall</button></div>
-  </main>
-</div>
-
-<div id="ar">
-  <div id="arTop"><div id="arMsg"></div><button id="arExit">Close</button></div>
-  <div id="cross"></div>
-  <div id="readout"></div>
-  <div id="toast"></div>
-  <div id="arBot">
-    <div id="slider" hidden><span>Photo</span><input type="range" id="opacity" min="0" max="100" value="60"><span>Marks</span><input type="checkbox" id="showMarks" checked></div>
-    <div id="nudge" hidden><button data-n="-1,0">◀</button><button data-n="1,0">▶</button><button data-n="0,1">▲</button><button data-n="0,-1">▼</button><button data-n="0,0">Reset</button></div>
-    <div class="chips" id="chips"></div>
-    <div class="row" id="arBtns"></div>
+    <div class="btnrow"><button class="btn filled" id="newWallBtn"><svg class="i"><use href="#i-plus"/></svg>New Wall</button></div>
+    <div class="btnrow" style="margin-top:10px"><button class="btn tinted" id="importBtn">Import a Wall File</button></div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
 </div>
+
+<!-- Wall page -->
+<div class="page" id="wallView" hidden>
+  <div class="nav" id="wallNav"><div class="navrow">
+    <button class="navbtn" id="backBtn"><svg class="i" style="width:26px;height:26px"><use href="#i-back"/></svg>Walls</button>
+    <span class="navtitle" id="wallNavTitle"></span>
+    <button class="navbtn round" id="exportBtn" aria-label="Share"><svg class="i"><use href="#i-share"/></svg></button></div></div>
+  <div class="content">
+    <h1 class="largetitle" id="wallTitle"></h1>
+    <div class="seg" id="seg"><button data-v="both" class="on">Photo + Marks</button><button data-v="marks">Marks</button><button data-v="photo">Photo</button></div>
+    <div class="wallcard">
+      <canvas id="wall2d"></canvas>
+      <div class="legend" id="legend" style="padding-top:12px"></div>
+      <div class="tapinfo" id="info2d">Tap anywhere on the wall to see what’s nearby.</div>
+    </div>
+    <div class="btnrow">
+      <button class="btn filled" id="checkBtn"><svg class="i"><use href="#i-scope"/></svg>Check Wall</button>
+      <button class="btn tinted" id="scanMoreBtn"><svg class="i"><use href="#i-pen"/></svg>Add Marks</button>
+    </div>
+    <div class="secfoot" id="xrHint" hidden>The camera features need an Android phone with Chrome.</div>
+    <div class="sechead">Marks</div>
+    <div class="group" id="flist"></div>
+    <div class="sechead">Details</div>
+    <div class="group" id="details"></div>
+    <div class="group" style="margin-top:26px"><button class="cell destructive" id="renameBtn" style="color:var(--blue)">Rename Wall</button><button class="cell destructive" id="deleteBtn">Delete Wall</button></div>
+  </div>
+</div>
+
+<!-- Onboarding -->
+<div id="onboard" hidden>
+  <button class="skip" id="obSkip">Skip</button>
+  <div class="story" id="obStory"></div>
+  <div class="obtext"><h1 id="obTitle"></h1><p id="obText"></p></div>
+  <div class="obbtns"><button class="btn filled" id="obGo">Get Started</button></div>
+</div>
+
+<!-- AR overlay (shown on top of the live camera) -->
+<div id="ar">
+  <div id="arTop">
+    <button class="circ glass" id="arExit" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    <div id="arCard" class="glass"><div id="arStep"></div><div id="arMsg"></div></div>
+  </div>
+  <div id="reticle"></div>
+  <div id="readout" class="glass"></div>
+  <div id="toast" class="glass"></div>
+  <div id="arBot">
+    <div id="nudge" hidden>
+      <button class="circ glass" data-n="-1,0" aria-label="Left"><svg class="i"><use href="#i-left"/></svg></button>
+      <button class="circ glass" data-n="0,1" aria-label="Up"><svg class="i"><use href="#i-up"/></svg></button>
+      <button class="circ glass" data-n="0,-1" aria-label="Down"><svg class="i" style="transform:rotate(180deg)"><use href="#i-up"/></svg></button>
+      <button class="circ glass" data-n="1,0" aria-label="Right"><svg class="i" style="transform:rotate(180deg)"><use href="#i-left"/></svg></button>
+      <button class="pill glass" data-n="0,0">Reset</button>
+    </div>
+    <div id="pills"></div>
+    <div id="modes"></div>
+    <div id="controls">
+      <div class="side" id="leftCtl"></div>
+      <button id="shutter" aria-label="Add"><b></b></button>
+      <div class="side" id="rightCtl"></div>
+    </div>
+  </div>
+</div>
+
+<!-- icons -->
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="i-scope" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></symbol>
+  <symbol id="i-adjust" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></symbol>
+  <symbol id="i-corner" viewBox="0 0 24 24"><path d="M5 3v16h16"/><circle cx="5" cy="19" r="2.2" fill="currentColor"/></symbol>
+</svg>
 
 <script>
 "use strict";
@@ -116,12 +294,12 @@ const $ = id => document.getElementById(id);
 
 /* ---------- mark types ---------- */
 const TYPES = {
-  pipe:   {label:'Pipe',        color:'#3b9bff', w:0.04,  kind:'line',  danger:true},
-  cable:  {label:'Cable',       color:'#ffb020', w:0.02,  kind:'line',  danger:true},
-  rebar:  {label:'Rebar',       color:'#ff5a5a', w:0.016, kind:'line',  danger:true},
-  box:    {label:'Socket/box',  color:'#c77dff', w:0.08,  kind:'point', danger:true},
-  hole:   {label:'Hole',        color:'#2ee6a8', w:0.06,  kind:'point', danger:true},
-  opening:{label:'Window/door', color:'#ffffff', w:0,     kind:'rect',  danger:false},
+  pipe:   {label:'Pipe',        color:'#0a84ff', w:0.04,  kind:'line',  danger:true},
+  cable:  {label:'Cable',       color:'#ff9f0a', w:0.02,  kind:'line',  danger:true},
+  rebar:  {label:'Rebar',       color:'#ff453a', w:0.016, kind:'line',  danger:true},
+  box:    {label:'Socket',  color:'#bf5af2', w:0.08,  kind:'point', danger:true},
+  hole:   {label:'Hole',        color:'#30d158', w:0.06,  kind:'point', danger:true},
+  opening:{label:'Window', color:'#ffffff', w:0,     kind:'rect',  danger:false},
   measure:{label:'Measure',     color:'#ffffff', w:0,     kind:'two',   danger:false},
 };
 const MARGIN = 0.05;      // keep 5 cm from anything dangerous
@@ -244,67 +422,239 @@ const allWalls=()=>tx('readonly',s=>s.getAll());
 const delWall=id=>tx('readwrite',s=>s.delete(id));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
+/* ---------- story animation: explains the idea in four short scenes ---------- */
+const SCENES = [
+  {t:0,    title:'Scan the wall while it’s open', text:'During construction, film the wall with your phone while pipes, cables and rebar are still visible.'},
+  {t:4.6,  title:'Everything is saved', text:'Each pipe and cable is stored with its exact position, measured from the corners of the wall.'},
+  {t:7.6,  title:'Then the wall is finished', text:'Plaster and paint hide everything inside. Nobody remembers where the pipes went.'},
+  {t:10.2, title:'Look through the wall', text:'Point your phone at the finished wall. See what’s inside and exactly where it’s safe to drill or hang a picture.'},
+];
+const STORY_LEN = 17.2;
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const ease = x => { x=clamp01(x); return x*x*(3-2*x); };
+const lerp = (a,b,t) => a+(b-a)*t;
+
+function createStory(el, opts={}){
+  const id = 's'+Math.random().toString(36).slice(2,7);
+  el.innerHTML = `
+  <svg viewBox="0 0 360 248" preserveAspectRatio="xMidYMid ${opts.fit||'slice'}" aria-hidden="true">
+    <defs>
+      <pattern id="${id}b" width="44" height="22" patternUnits="userSpaceOnUse" x="30" y="24">
+        <rect width="44" height="22" fill="#b8a891"/><path d="M0 .5H44M0 11.5H44M.5 0V11M22.5 11V22" stroke="#9c8c76" stroke-width="1.2"/></pattern>
+      <clipPath id="${id}c"><rect id="${id}cr" rx="9" x="0" y="0" width="0" height="0"/></clipPath>
+      <filter id="${id}sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-opacity=".28"/></filter>
+    </defs>
+    <rect x="0" y="228" width="360" height="20" fill="#8f97a1" opacity=".55"/>
+    <rect x="30" y="24" width="300" height="204" fill="url(#${id}b)"/>
+    <g id="${id}guts" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 100H330M30 176H330" stroke="#c4473c" stroke-width="2.5" stroke-dasharray="1" pathLength="1"/>
+      <path d="M100 228V70H214" stroke="#0a84ff" stroke-width="8" stroke-dasharray="1" pathLength="1"/>
+      <path d="M262 228V136" stroke="#ff9f0a" stroke-width="4.5" stroke-dasharray="1" pathLength="1"/>
+      <rect x="250" y="112" width="24" height="24" rx="3" fill="#bf5af2" stroke="#8e3ab8" stroke-width="2" opacity="0"/>
+    </g>
+    <rect id="${id}scan" x="30" y="24" width="0" height="204" fill="#0a84ff" opacity=".16"/>
+    <rect id="${id}plaster" x="30" y="24" width="300" height="0" fill="#efebe5"/>
+    <g id="${id}pic" opacity="0">
+      <rect x="150" y="104" width="50" height="40" rx="2" fill="#fff" stroke="#6b5640" stroke-width="3" filter="url(#${id}sh)"/>
+      <path d="M156 138l12-14 9 9 6-6 11 11z" fill="#34c759"/><circle cx="188" cy="114" r="4" fill="#ffcc00"/>
+    </g>
+    <g clip-path="url(#${id}c)" id="${id}xray" opacity="0">
+      <rect x="0" y="0" width="360" height="248" fill="#0b1a2a" opacity=".22"/>
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M30 100H330M30 176H330" stroke="#ff453a" stroke-width="2.5" opacity=".9"/>
+        <path d="M100 228V70H214" stroke="#0a84ff" stroke-width="8" opacity=".55"/>
+        <path d="M100 228V70H214" stroke="#0a84ff" stroke-width="3.5"/>
+        <path d="M262 228V136" stroke="#ff9f0a" stroke-width="4.5"/>
+        <rect x="250" y="112" width="24" height="24" rx="3" fill="#bf5af2" opacity=".8"/>
+      </g>
+    </g>
+    <g id="${id}phone" opacity="0">
+      <rect x="-46" y="-82" width="92" height="164" rx="16" fill="none" stroke="#1c1c1e" stroke-width="7" filter="url(#${id}sh)"/>
+      <rect x="-14" y="-76" width="28" height="7" rx="3.5" fill="#1c1c1e"/>
+      <rect id="${id}sline" x="-40" y="-2" width="80" height="3" rx="1.5" fill="#64d2ff" opacity="0"/>
+      <g id="${id}ret" opacity="0">
+        <circle r="11" fill="none" stroke-width="2.5" id="${id}retc" stroke="#fff"/><circle r="2.2" id="${id}retd" fill="#fff"/>
+        <g id="${id}tag" transform="translate(0,26)">
+          <rect id="${id}tagbg" x="-38" y="-10" width="76" height="20" rx="10" fill="#34c759"/>
+          <text id="${id}tagt" x="0" y="4" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="-apple-system,system-ui,sans-serif">Safe</text>
+        </g>
+      </g>
+      <g id="${id}saved" opacity="0">
+        <circle r="20" fill="#34c759"/><path d="M-9 0l6 6 12-12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <text y="38" text-anchor="middle" font-size="12" font-weight="700" fill="#1c1c1e" font-family="-apple-system,system-ui,sans-serif">Saved</text>
+      </g>
+    </g>
+  </svg>
+  <div class="storydots">${SCENES.map(()=>'<i><b></b></i>').join('')}</div>
+  <div class="caption"><b></b><span></span></div>`;
+  const q = s => el.querySelector('#'+id+s);
+  const guts = q('guts').children, phone=q('phone'), scan=q('scan'), plaster=q('plaster'), xray=q('xray'), cr=q('cr'),
+        sline=q('sline'), ret=q('ret'), retc=q('retc'), retd=q('retd'), tagbg=q('tagbg'), tagt=q('tagt'), saved=q('saved'), pic=q('pic');
+  const dots=[...el.querySelectorAll('.storydots b')], cap=el.querySelector('.caption');
+  if(opts.captions===false) cap.style.display='none';
+  let t0=performance.now(), raf=0, lastScene=-1;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function frame(now){
+    raf=requestAnimationFrame(frame);
+    if(!el.isConnected || el.offsetParent===null) return;
+    let t=((now-t0)/1000)%STORY_LEN;
+    let sc=0; for(let i=0;i<SCENES.length;i++) if(t>=SCENES[i].t) sc=i;
+    if(reduce){ t = [4.4,6.6,10.0,14.6][sc]; }
+    if(sc!==lastScene){ lastScene=sc; cap.querySelector('b').textContent=SCENES[sc].title; cap.querySelector('span').textContent=SCENES[sc].text; opts.onScene&&opts.onScene(sc,SCENES[sc]); }
+    dots.forEach((d,i)=>{ const a=SCENES[i].t, b=i+1<SCENES.length?SCENES[i+1].t:STORY_LEN; d.style.transform=`scaleX(${clamp01((((now-t0)/1000)%STORY_LEN-a)/(b-a))})`; });
+
+    // pipes draw themselves in
+    const g=ease((t-0.3)/1.4);
+    for(let i=0;i<3;i++) guts[i].setAttribute('stroke-dashoffset', 1-ease(g*1.2-i*0.1));
+    guts[3].setAttribute('opacity', ease((t-1.2)/0.4));
+    // phone path
+    let px=70, py=126, po=0, ps=1;
+    if(t<4.6){ po=ease((t-1.2)/0.5); px=lerp(70,290,ease((t-1.8)/2.6)); }
+    else if(t<7.6){ po=1-ease((t-7.2)/0.4); px=lerp(290,180,ease((t-4.6)/0.8)); }
+    else if(t<10.2){ po=0; }
+    else {
+      po=ease((t-10.2)/0.4);
+      if(t<11.8) px=lerp(255,104,ease((t-10.4)/1.4));
+      else if(t<13.2) px=104;
+      else if(t<14.4) px=lerp(104,175,ease((t-13.2)/1.2));
+      else if(t<15.2) px=175;
+      else px=lerp(175,290,ease((t-15.2)/0.7));
+    }
+    phone.setAttribute('transform',`translate(${px},${py}) scale(${ps})`); phone.setAttribute('opacity',po);
+    // scanned area
+    const scanned = t<4.6 ? Math.max(0,Math.min(300,(px-30+46)*ease((t-1.8)/0.2))) : t<7.6 ? 300 : 0;
+    scan.setAttribute('width',scanned); scan.setAttribute('opacity', t<7.6 ? 0.16*(1-ease((t-7.0)/0.6)) : 0);
+    sline.setAttribute('opacity', t>1.8&&t<4.4 ? 1 : 0); sline.setAttribute('y', -2+Math.sin(t*6)*60);
+    // saved badge
+    const sv = t>5.5&&t<7.4 ? ease((t-5.5)/0.3) : 0; saved.setAttribute('opacity',sv); saved.setAttribute('transform',`scale(${0.6+0.4*sv})`);
+    // plaster covers everything
+    const pl = t<7.6 ? 0 : ease((t-7.9)/1.6); plaster.setAttribute('height',204*pl);
+    // x-ray view through the phone
+    const xr = t>=10.2 ? po : 0; xray.setAttribute('opacity',xr);
+    cr.setAttribute('x',px-42); cr.setAttribute('y',py-78); cr.setAttribute('width',84); cr.setAttribute('height',156);
+    ret.setAttribute('opacity', xr);
+    const d=Math.abs(px-100), col = d<22 ? '#ff3b30' : d<45 ? '#ff9500' : '#34c759';
+    retc.setAttribute('stroke',col); retd.setAttribute('fill',col); tagbg.setAttribute('fill',col);
+    tagt.textContent = d<22 ? 'Pipe · too close' : d<45 ? 'Careful' : 'Safe to drill';
+    pic.setAttribute('opacity', t>15.5 ? ease((t-15.5)/0.5) : 0);
+  }
+  return {
+    start(){ if(!raf){ raf=requestAnimationFrame(frame);} },
+    stop(){ cancelAnimationFrame(raf); raf=0; },
+    restart(){ t0=performance.now(); lastScene=-1; this.start(); }
+  };
+}
+
+/* ---------- sheets and alerts (instead of browser pop-ups) ---------- */
+function alertBox(title, msg, buttons=[{label:'OK',value:true,bold:true}]){
+  return new Promise(res=>{
+    const s=document.createElement('div'); s.className='scrim alert';
+    s.innerHTML=`<div class="alertbox" role="alertdialog"><div class="ab"><b></b><p></p></div><div class="abtns"></div></div>`;
+    s.querySelector('b').textContent=title; s.querySelector('p').textContent=msg;
+    for(const b of buttons){ const e=document.createElement('button'); e.textContent=b.label; if(b.bold) e.classList.add('bold'); if(b.red) e.classList.add('red');
+      e.onclick=()=>{ s.classList.remove('show'); setTimeout(()=>s.remove(),250); res(b.value); }; s.querySelector('.abtns').appendChild(e); }
+    document.body.appendChild(s); requestAnimationFrame(()=>s.classList.add('show'));
+  });
+}
+function textSheet({title, value='', placeholder='', action='Done', tip=''}){
+  return new Promise(res=>{
+    const s=document.createElement('div'); s.className='scrim';
+    s.innerHTML=`<div class="sheet"><div class="grabber"></div><div class="sheethead"><button data-a="cancel">Cancel</button><b></b><button data-a="ok" style="font-weight:600"></button></div>
+      <input type="text" enterkeyhint="done">${tip?`<div class="tip">${tip}</div>`:''}<button class="btn filled" data-a="ok2"></button></div>`;
+    s.querySelector('b').textContent=title; s.querySelector('[data-a=ok]').textContent=action==='Done'?'Done':''; s.querySelector('[data-a=ok2]').textContent=action;
+    const inp=s.querySelector('input'); inp.value=value; inp.placeholder=placeholder;
+    const close=v=>{ s.classList.remove('show'); setTimeout(()=>s.remove(),300); res(v); };
+    s.onclick=e=>{ const a=e.target.dataset&&e.target.dataset.a; if(e.target===s||a==='cancel') close(null); else if(a==='ok'||a==='ok2') close(inp.value.trim()); };
+    inp.onkeydown=e=>{ if(e.key==='Enter') close(inp.value.trim()); };
+    document.body.appendChild(s); requestAnimationFrame(()=>{s.classList.add('show'); setTimeout(()=>inp.focus(),350);});
+  });
+}
+
 /* ---------- home & wall pages ---------- */
-let xrOK=false, current=null;
+let xrOK=false, current=null, heroStory=null, obStory=null;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 async function checkSupport(){
-  const b=$('support');
-  if(!window.isSecureContext){b.textContent='Open this page from its https:// address for the camera to work.';return;}
-  if(!navigator.xr){b.innerHTML='This browser has no live AR. Use an <b>Android phone with Chrome</b> and the <b>Google Play Services for AR</b> app installed. You can still look at saved walls here.';return;}
-  try{ xrOK=await navigator.xr.isSessionSupported('immersive-ar'); }catch(e){ xrOK=false; }
-  if(xrOK){b.className='banner ok';b.textContent='Live AR is available on this phone.';}
-  else b.innerHTML='Live AR is not available. Install or update <b>Google Play Services for AR</b> from the Play Store, then reload. Saved walls can still be viewed.';
+  if(navigator.xr && window.isSecureContext){ try{ xrOK=await navigator.xr.isSessionSupported('immersive-ar'); }catch(e){ xrOK=false; } }
+  const box=$('support');
+  if(xrOK){ box.innerHTML=''; return; }
+  let title='Camera scanning isn’t available here', text='Live scanning works in Chrome on Android phones with “Google Play Services for AR” installed. You can still view and share saved walls here.';
+  if(isIOS){ title='Camera scanning needs Android for now'; text='iPhone browsers don’t allow live AR scanning yet. The iPhone app with LiDAR is on its way. You can still watch the intro and view saved walls.'; }
+  else if(!window.isSecureContext){ text='Open this page from its https:// address to use the camera.'; }
+  box.innerHTML=`<div class="notice"><div class="iconbox"><svg class="i"><use href="#i-warn"/></svg></div><div><b></b><span style="color:var(--label2)"></span></div></div>`;
+  box.querySelector('b').textContent=title; box.querySelector('span').textContent=text;
 }
 function show(view){
   $('home').hidden=view!=='home'; $('wallView').hidden=view!=='wall';
-  $('backBtn').hidden=view==='home';
-  $('title').textContent=view==='home'?'Wall Scanner Live':'Wall';
-  window.scrollTo(0,0);
+  window.scrollTo(0,0); onScroll();
 }
+function onScroll(){ const y=window.scrollY>36; $('homeNav').classList.toggle('scrolled',y); $('wallNav').classList.toggle('scrolled',y); }
+window.addEventListener('scroll',onScroll,{passive:true});
 const thumbURLs=[];
+const chevron='<svg class="i chev"><use href="#i-chev"/></svg>';
 async function renderHome(){
   show('home'); current=null;
+  if(!heroStory){ heroStory=createStory($('heroStory')); }
+  heroStory.start();
   thumbURLs.splice(0).forEach(u=>URL.revokeObjectURL(u));
   const walls=(await allWalls()).sort((a,b)=>b.updated-a.updated);
   const L=$('wallList'); L.innerHTML='';
-  if(!walls.length){L.innerHTML='<p class="muted small" style="margin-top:14px">No walls yet. Tap “New wall” to scan your first one.</p>';return;}
-  for(const w of walls){
-    const d=document.createElement('div'); d.className='wallitem';
-    let img='<div class="ph"></div>';
-    if(w.mosaic){const u=URL.createObjectURL(w.mosaic);thumbURLs.push(u);img=`<img src="${u}" alt="">`;}
-    d.innerHTML=`${img}<div><b></b><span class="small muted">${w.W.toFixed(2)} × ${w.H.toFixed(2)} m · ${w.features.length} marks</span></div>`;
-    d.querySelector('b').textContent=w.name;
-    d.onclick=()=>openWall(w.id);
-    L.appendChild(d);
+  $('wallsHead').hidden=!walls.length;
+  if(!walls.length){
+    L.innerHTML='<div class="empty"><b>No walls yet</b>Tap New Wall and point your phone at a wall that’s still open.</div>';
+    return;
   }
+  const g=document.createElement('div'); g.className='group'; g.style.setProperty('--inset','92px');
+  for(const w of walls){
+    const d=document.createElement('button'); d.className='cell';
+    let img='<div class="thumb"></div>';
+    if(w.mosaic){const u=URL.createObjectURL(w.mosaic);thumbURLs.push(u);img=`<img class="thumb" src="${u}" alt="">`;}
+    d.innerHTML=`${img}<span class="grow"><span class="t"></span><span class="s">${w.W.toFixed(2)} × ${w.H.toFixed(2)} m · ${w.features.length} mark${w.features.length===1?'':'s'}</span></span>${chevron}`;
+    d.querySelector('.t').textContent=w.name;
+    d.onclick=()=>openWall(w.id);
+    g.appendChild(d);
+  }
+  L.appendChild(g);
 }
-let wallImg=null, cursor2d=null;
+let wallImg=null, cursor2d=null, layerMode='both';
 async function openWall(id){
   current=await getWall(id); if(!current) return renderHome();
+  heroStory&&heroStory.stop();
   show('wall'); cursor2d=null;
-  $('wallName').value=current.name;
-  $('wallStats').textContent=`${current.W.toFixed(2)} m wide × ${current.H.toFixed(2)} m high · camera picture covers ${Math.round((current.coverage||0)*100)}% · saved ${new Date(current.updated).toLocaleString()}`;
+  $('wallTitle').textContent=current.name; $('wallNavTitle').textContent=current.name;
+  $('info2d').innerHTML='Tap anywhere on the wall to see what’s nearby.';
   wallImg=null;
   if(current.mosaic){ const img=new Image(); img.onload=()=>{wallImg=img;draw2d();}; img.src=URL.createObjectURL(current.mosaic); }
-  $('checkBtn').disabled=$('scanMoreBtn').disabled=!xrOK;
-  $('legend').innerHTML=Object.values(TYPES).map(t=>`<span><i style="background:${t.color}"></i>${t.label}</span>`).join('');
+  $('checkBtn').disabled=$('scanMoreBtn').disabled=!xrOK; $('xrHint').hidden=xrOK;
+  $('seg').hidden=!current.mosaic;
+  $('legend').innerHTML=Object.values(TYPES).filter(t=>t.kind!=='two').map(t=>`<span><i style="background:${t.color}"></i>${t.label}</span>`).join('');
+  const rows=[['Width',current.W.toFixed(2)+' m'],['Height',current.H.toFixed(2)+' m'],['Camera picture',current.mosaic?Math.round((current.coverage||0)*100)+'% of wall':'Not filmed yet'],['Last saved',new Date(current.updated).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})]];
+  $('details').innerHTML=rows.map(r=>`<div class="cell"><span class="grow">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('');
   renderFList(); draw2d();
 }
 function draw2d(){
   if(!current) return;
-  const c=$('wall2d'), cw=c.clientWidth||340, dpr=Math.min(2,devicePixelRatio||1);
+  const c=$('wall2d'), cw=c.clientWidth||340, dpr=Math.min(3,devicePixelRatio||1);
   const s=cw/current.W; c.width=cw*dpr; c.height=current.H*s*dpr; c.style.height=current.H*s+'px';
   const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cw,current.H*s);
-  if(wallImg) ctx.drawImage(wallImg,0,0,cw,current.H*s);
-  drawWall(ctx,current,s,{grid:true,cursor:cursor2d});
+  if(wallImg && layerMode!=='marks') ctx.drawImage(wallImg,0,0,cw,current.H*s);
+  if(layerMode!=='photo') drawWall(ctx,current,s,{grid:true,cursor:cursor2d});
+  else drawWall(ctx,{...current,features:[]},s,{grid:false,cursor:cursor2d});
 }
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b)); layerMode=b.dataset.v; draw2d(); });
 function renderFList(){
-  const L=$('flist'); L.innerHTML='';
-  if(!current.features.length){L.innerHTML='<p class="muted small">No marks yet.</p>';return;}
+  const L=$('flist'); L.innerHTML=''; L.style.setProperty('--inset','40px');
+  if(!current.features.length){L.innerHTML='<div class="cell" style="color:var(--label2)">No marks yet. Tap Add Marks to start.</div>';return;}
   current.features.forEach((f,i)=>{
     const t=TYPES[f.type], a=f.pts[0];
-    const d=document.createElement('div');
-    d.innerHTML=`<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${t.color};margin-right:6px"></i>${t.label} <span class="small muted">at ${mm2(a[0])}, ${mm2(a[1])} up</span></span><button>Delete</button>`;
-    d.querySelector('button').onclick=async()=>{current.features.splice(i,1);current.updated=Date.now();await putWall(current);renderFList();draw2d();};
+    let sub=`${mm2(a[0])} from left · ${mm2(a[1])} up`;
+    if(t.kind==='two'&&f.pts[1]) sub=`${mm2(Math.hypot(f.pts[1][0]-a[0],f.pts[1][1]-a[1]))} long`;
+    if(t.kind==='rect'&&f.pts[1]) sub=`${cm(Math.abs(f.pts[1][0]-a[0]))} × ${cm(Math.abs(f.pts[1][1]-a[1]))} · ${mm2(Math.min(a[0],f.pts[1][0]))} from left`;
+    const d=document.createElement('div'); d.className='cell';
+    d.innerHTML=`<span class="dot" style="background:${t.color};${t.color==='#ffffff'?'box-shadow:inset 0 0 0 1.5px var(--label3)':''}"></span><span class="grow"><span class="t">${t.label}</span><span class="s">${sub}</span></span><button class="trash" aria-label="Delete"><svg class="i"><use href="#i-trash"/></svg></button>`;
+    d.querySelector('button').onclick=async()=>{
+      if(!await alertBox(`Delete this ${t.label.toLowerCase()}?`,'',[{label:'Cancel',value:false},{label:'Delete',value:true,red:true,bold:true}])) return;
+      current.features.splice(i,1);current.updated=Date.now();await putWall(current);renderFList();draw2d();};
     L.appendChild(d);
   });
 }
@@ -312,21 +662,23 @@ $('wall2d').addEventListener('pointerdown',e=>{
   if(!current) return; const r=e.target.getBoundingClientRect(), s=r.width/current.W;
   cursor2d=[(e.clientX-r.left)/s, current.H-(e.clientY-r.top)/s];
   const d=describe(current,cursor2d);
-  $('info2d').innerHTML=`<b style="color:var(--${d.level})">${d.status}</b><br>${d.free}<br><span class="muted">${d.pos}</span>`;
+  $('info2d').innerHTML=`<b style="color:var(--${d.level==='ok'?'green':d.level==='warn'?'orange':'red'})">${d.status}</b>${d.free}<br>${d.pos}`;
   draw2d();
 });
 window.addEventListener('resize',()=>draw2d());
-$('wallName').addEventListener('change',async()=>{current.name=$('wallName').value.trim()||current.name;current.updated=Date.now();await putWall(current);});
 $('backBtn').onclick=renderHome;
-$('newWallBtn').onclick=()=>{
-  if(!xrOK){alert('Live AR is not available on this phone.');return;}
-  const n=prompt('Name of the wall (e.g. "Living room, north wall")', 'Wall '+new Date().toLocaleDateString());
+$('renameBtn').onclick=async()=>{ const n=await textSheet({title:'Rename Wall',value:current.name,action:'Save'}); if(n){current.name=n;current.updated=Date.now();await putWall(current);openWall(current.id);} };
+async function newWall(){
+  if(!xrOK){ await alertBox('Camera scanning not available', isIOS?'iPhone browsers don’t support live AR scanning yet. Please open this page on an Android phone in Chrome.':'Open this page in Chrome on an Android phone with “Google Play Services for AR” installed.'); return; }
+  const n=await textSheet({title:'New Wall',placeholder:'e.g. Living room, north wall',value:'',action:'Start Scanning',
+    tip:'<div class="iconbox" style="background:var(--blue)"><svg class="i"><use href="#i-corner"/></svg></div><span>You’ll aim at the two <b>bottom corners</b> of the wall, then film it slowly and mark what you see.</span>'});
   if(n===null) return;
-  startAR({id:uid(),name:n.trim()||'Wall',created:Date.now(),updated:Date.now(),W:0,H:0,features:[],mosaic:null,coverage:0}, true, 'pipe');
-};
+  startAR({id:uid(),name:n||('Wall '+new Date().toLocaleDateString()),created:Date.now(),updated:Date.now(),W:0,H:0,features:[],mosaic:null,coverage:0}, true, 'pipe');
+}
+$('newWallBtn').onclick=newWall; $('newWallTop').onclick=newWall;
 $('checkBtn').onclick=()=>startAR(current,false,'check');
 $('scanMoreBtn').onclick=()=>startAR(current,false,'pipe');
-$('deleteBtn').onclick=async()=>{ if(confirm(`Delete “${current.name}”? This cannot be undone.`)){await delWall(current.id);renderHome();} };
+$('deleteBtn').onclick=async()=>{ if(await alertBox(`Delete “${current.name}”?`,'The scan and all its marks will be removed from this phone.',[{label:'Cancel',value:false},{label:'Delete',value:true,red:true,bold:true}])){await delWall(current.id);renderHome();} };
 $('exportBtn').onclick=async()=>{
   const w=current, data={app:'wall-scanner-live',version:1,wall:{...w,mosaic:null}};
   if(w.mosaic) data.mosaic=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(w.mosaic);});
@@ -338,13 +690,22 @@ $('importBtn').onclick=()=>$('importFile').click();
 $('importFile').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value='';
   try{
-    const data=JSON.parse(await f.text()); if(data.app!=='wall-scanner-live') throw new Error('not a wall file');
+    const data=JSON.parse(await f.text()); if(data.app!=='wall-scanner-live') throw new Error('This is not a wall file.');
     const w=data.wall; w.mosaic=data.mosaic?await (await fetch(data.mosaic)).blob():null;
     if(await getWall(w.id)) w.id=uid();
     w.updated=Date.now(); await putWall(w); openWall(w.id);
-  }catch(err){alert('Could not import: '+err.message);}
+  }catch(err){ alertBox('Couldn’t import',err.message); }
 };
 
+/* onboarding */
+function showOnboarding(){
+  const o=$('onboard'); o.hidden=false; heroStory&&heroStory.stop();
+  if(!obStory) obStory=createStory($('obStory'),{captions:false,fit:'meet',onScene:(i,s)=>{$('obTitle').textContent=s.title;$('obText').textContent=s.text;}});
+  obStory.restart();
+}
+function closeOnboarding(){ $('onboard').hidden=true; obStory&&obStory.stop(); try{localStorage.setItem('wsl-onboarded','1');}catch(e){} if(!$('home').hidden) heroStory&&heroStory.start(); }
+$('obSkip').onclick=closeOnboarding; $('obGo').onclick=closeOnboarding; $('replayIntro').onclick=showOnboarding;
+$('heroStory').onclick=showOnboarding;
 /* ---------- small vector / matrix helpers (column-major like WebXR) ---------- */
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
 const scl=(a,s)=>[a[0]*s,a[1]*s,a[2]*s], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -415,7 +776,7 @@ async function startAR(wall, isNew, tool){
   try{
     ensureGL();
     Object.assign(A,{wall:JSON.parse(JSON.stringify({...wall,mosaic:null})), mosaicBlob:wall.mosaic, isNew, tool, step:'c1', corners:[], F:null,
-      nudge:[0,0], pending:null, recording:false, target:null, hit:null, dirty:false, featDirty:true, hasMosaic:false, frameNo:0, lastHud:0, recFrames:0});
+      nudge:[0,0], opacity:0.6, showMarks:true, showNudge:false, pending:null, recording:false, target:null, hit:null, dirty:false, featDirty:true, hasMosaic:false, frameNo:0, lastHud:0, recFrames:0});
     const root=$('ar');
     const session=await navigator.xr.requestSession('immersive-ar',{
       requiredFeatures:['hit-test','dom-overlay'],
@@ -440,77 +801,105 @@ async function startAR(wall, isNew, tool){
     session.requestAnimationFrame(onFrame);
   }catch(err){
     console.error(err); $('ar').classList.remove('on');
-    alert('Could not start the camera AR: '+(err.message||err)+'\n\nMake sure you use Chrome on Android and that “Google Play Services for AR” is installed.');
+    alertBox('Couldn’t start the camera', (err.message||String(err))+' Make sure you’re using Chrome on Android with “Google Play Services for AR” installed.');
   }
 }
 async function onAREnd(){
   $('ar').classList.remove('on');
   const id=A.wall.id;
-  if(A.step==='tools' && A.dirty){ await saveWall(); }
+  if(A.step==='tools' && A.dirty){ await saveWall(true); }
   A.session=null;
   if(await getWall(id)) openWall(id); else renderHome();
 }
-function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,1600);}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1700);}
+const buzz=()=>{ try{navigator.vibrate&&navigator.vibrate(12);}catch(e){} };
 
+/* camera-screen controls, laid out like the iPhone Camera app */
+const MODE_ORDER=['check','pipe','cable','rebar','box','hole','opening','measure'];
+const ico = (n,extra='') => `<svg class="i" ${extra}><use href="#i-${n}"/></svg>`;
+function sideBtn(el, icon, label, fn, on){
+  el.innerHTML=''; el.className='side'+(on?' on':'');
+  if(!icon) return;
+  const b=document.createElement('button'); b.className='circ glass'; b.innerHTML=icon; b.onclick=fn; b.setAttribute('aria-label',label);
+  const l=document.createElement('span'); l.textContent=label;
+  el.append(b,l);
+}
 function buildUI(){
-  const msg=$('arMsg'), chips=$('chips'), btns=$('arBtns');
-  chips.innerHTML=''; btns.innerHTML='';
-  $('slider').hidden=A.step!=='tools'||!A.hasMosaic;
-  $('nudge').hidden=!(A.step==='tools'&&!A.isNew&&A.showNudge);
-  const B=(text,cls,fn,id)=>{const b=document.createElement('button');b.textContent=text;if(cls)b.className=cls;if(id)b.id=id;b.onclick=fn;btns.appendChild(b);return b;};
-  if(A.step==='c1'){
-    msg.textContent=A.isNew?'Step 1 of 3 · Aim the cross at the BOTTOM-LEFT corner of the wall (where wall, floor and side wall meet).':'Aim at the same BOTTOM-LEFT corner you used when scanning this wall.';
-    B('Set corner 1','pri',()=>setCorner(),'placeBtn');
-  } else if(A.step==='c2'){
-    msg.textContent=(A.isNew?'Step 2 of 3 · ':'')+'Now aim at the BOTTOM-RIGHT corner of the same wall.';
-    B('Undo','',()=>{A.corners.pop();A.step='c1';buildUI();});
-    B('Set corner 2','pri',()=>setCorner(),'placeBtn');
-  } else if(A.step==='top'){
-    msg.textContent='Step 3 of 3 · Aim at the TOP of the wall (where it meets the ceiling).';
-    B('Skip (2.60 m)','',()=>setTop(DEFAULT_H));
-    B('Set top','pri',()=>setTop(null),'placeBtn');
-  } else {
-    const order=['check','pipe','cable','rebar','box','hole','opening','measure'];
-    for(const k of order){
-      const c=document.createElement('button'); const t=TYPES[k];
-      c.innerHTML=k==='check'?'Check spot':`<i style="background:${t.color}"></i>${t.label}`;
+  const step=$('arStep'), msg=$('arMsg'), modes=$('modes'), pills=$('pills'), sh=$('shutter'), L=$('leftCtl'), R=$('rightCtl');
+  pills.innerHTML=''; sh.className=''; sh.style.visibility='visible';
+  $('nudge').hidden=!(A.step==='tools'&&A.tool==='check'&&A.showNudge);
+  modes.hidden=A.step!=='tools';
+  if(A.step==='c1'||A.step==='c2'||A.step==='top'){
+    const n=A.step==='c1'?1:A.step==='c2'?2:3, total=A.isNew?3:2;
+    step.textContent=`Step ${n} of ${total}`;
+    msg.textContent = A.step==='c1' ? (A.isNew?'Aim at the bottom-left corner of the wall':'Aim at the same bottom-left corner as before')
+      : A.step==='c2' ? 'Now aim at the bottom-right corner' : 'Aim at the top of the wall, where it meets the ceiling';
+    sh.querySelector('b').innerHTML = A.step==='top' ? ico('check') : ico('plus');
+    sh.onclick = A.step==='top' ? ()=>setTop(null) : ()=>setCorner();
+    sh.setAttribute('aria-label', A.step==='top'?'Set top':'Set corner');
+    if(A.step==='c2') sideBtn(L, ico('undo'), 'Undo', ()=>{A.corners.pop();A.step='c1';buildUI();}); else sideBtn(L);
+    if(A.step==='top') sideBtn(R, '<b style="font-size:13px">2.6</b>', 'Skip', ()=>setTop(DEFAULT_H)); else sideBtn(R);
+    return;
+  }
+  // tools
+  if(!modes.children.length || modes.dataset.tool!==A.tool){
+    modes.innerHTML=''; modes.dataset.tool=A.tool;
+    for(const k of MODE_ORDER){
+      const c=document.createElement('button'); c.dataset.k=k;
+      c.innerHTML=`${k==='check'?'Check':TYPES[k].label}<i style="background:${k==='check'?'var(--yellow)':TYPES[k].color}"></i>`;
       if(A.tool===k) c.className='sel';
-      c.onclick=()=>{ if(A.pending&&A.pending.pts.length) finishPending(); A.tool=k; A.pending=null; A.featDirty=true; buildUI(); };
-      chips.appendChild(c);
+      c.onclick=()=>{ if(A.tool===k) return; if(A.pending&&A.pending.pts.length) finishPending(); A.tool=k; A.pending=null; A.featDirty=true; buzz(); buildUI(); };
+      modes.appendChild(c);
     }
-    if(A.tool==='check'){
-      msg.textContent='Aim the cross at the spot you want to drill or hang something.';
-      if(!A.isNew) B(A.showNudge?'Hide adjust':'Adjust','',()=>{A.showNudge=!A.showNudge;buildUI();});
-    } else {
-      const t=TYPES[A.tool];
-      msg.textContent = t.kind==='line'?`${t.label}: aim at points along it and tap “Add point”, then “Done”.`
-        : t.kind==='point'?`${t.label}: aim at its centre and tap “Add”.`
-        : t.kind==='rect'?'Window/door: add its bottom-left, then its top-right corner.'
-        : 'Measure: add the start point, then the end point.';
+    const sel=modes.querySelector('.sel'); if(sel) requestAnimationFrame(()=>sel.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'}));
+  }
+  const t=TYPES[A.tool];
+  if(A.tool==='check'){
+    step.textContent='Check';
+    msg.textContent='Aim at the spot where you want to drill or hang something';
+    sh.style.visibility='hidden';
+    sideBtn(L, ico('undo'), 'Undo', undo);
+    L.style.visibility='hidden';
+    if(!A.isNew) sideBtn(R, ico('adjust'), A.showNudge?'Done':'Align', ()=>{A.showNudge=!A.showNudge;buildUI();}, A.showNudge); else sideBtn(R);
+  } else {
+    L.style.visibility='visible';
+    step.textContent=t.label;
+    const np=A.pending?A.pending.pts.length:0;
+    msg.textContent = t.kind==='line' ? (np===0?`Aim at one end of the ${t.label.toLowerCase()} and tap +`:`Aim at the next point along it and tap +`)
+      : t.kind==='point' ? `Aim at the middle of the ${t.label.toLowerCase()} and tap +`
+      : t.kind==='rect' ? (np===0?'Aim at the bottom-left corner of the window or door':'Now aim at its top-right corner')
+      : (np===0?'Aim at where to measure from':'Now aim at where to measure to');
+    sh.querySelector('b').innerHTML=ico('plus'); sh.onclick=addPoint; sh.setAttribute('aria-label','Add point');
+    sideBtn(L, ico('undo'), 'Undo', undo);
+    if(A.binding) sideBtn(R, '<span class="recdot"></span>', A.recording?'Stop':'Film', toggleRec, A.recording); else sideBtn(R);
+    if(t.kind==='line' && np>=2){
+      const p=document.createElement('button'); p.className='pill y'; p.innerHTML=`${ico('check')}Finish ${t.label.toLowerCase()}`;
+      p.onclick=()=>{finishPending();buzz();buildUI();}; pills.appendChild(p);
     }
-    if(A.binding) B(A.recording?'■ Stop':'● Film wall',A.recording?'rec':'',()=>{A.recording=!A.recording;if(A.recording)toast('Move slowly across the whole wall');buildUI();});
-    if(A.tool!=='check'){
-      const t=TYPES[A.tool];
-      B('Undo','',undo);
-      B(t.kind==='line'?'Add point':'Add','pri',addPoint,'placeBtn');
-      if(t.kind==='line') B('Done','',()=>{finishPending();buildUI();});
-    }
-    B('Save','',async()=>{finishPending();await saveWall();toast('Saved');});
+  }
+  if(A.hasMosaic && !A.recording){
+    const p=document.createElement('div'); p.className='pill glass';
+    p.innerHTML=`<span>Photo</span><input type="range" min="0" max="100" value="${Math.round(A.opacity*100)}" aria-label="Photo visibility">`;
+    p.querySelector('input').oninput=e=>{A.opacity=e.target.value/100;};
+    pills.appendChild(p);
   }
 }
+async function toggleRec(){
+  A.recording=!A.recording; buzz();
+  if(A.recording) toast('Move slowly across the whole wall');
+  else { toast('Saving picture…'); await saveWall(true); toast('Picture saved'); }
+  buildUI();
+}
 $('arExit').onclick=()=>A.session&&A.session.end();
-$('opacity').oninput=()=>{};
-$('showMarks').onchange=()=>{A.featDirty=true;};
 document.querySelectorAll('#nudge button').forEach(b=>b.onclick=()=>{
   const [x,y]=b.dataset.n.split(',').map(Number); if(!x&&!y) A.nudge=[0,0]; else {A.nudge[0]+=x*0.01;A.nudge[1]+=y*0.01;}
-  toast(`Shift ${cm(A.nudge[0])} sideways, ${cm(A.nudge[1])} up`);
+  buzz(); toast(`Moved ${cm(A.nudge[0])} sideways, ${cm(A.nudge[1])} up`);
 });
-
 function setCorner(){
   if(!A.hit){toast('No surface found yet. Move the phone slowly.');return;}
   const c={pos:A.hit.pos, mat:A.hit.mat, anchor:null};
   if(A.hit.result && A.hit.result.createAnchor){ A.hit.result.createAnchor().then(a=>c.anchor=a).catch(()=>{}); }
-  A.corners.push(c);
+  A.corners.push(c); buzz();
   if(A.step==='c1'){A.step='c2';}
   else {
     const W=Math.hypot(A.corners[1].pos[0]-A.corners[0].pos[0],A.corners[1].pos[2]-A.corners[0].pos[2]);
@@ -524,7 +913,7 @@ function setCorner(){
 }
 function setTop(h){
   if(h===null){ if(!A.target){toast('Aim at the wall');return;} h=A.target[1]; if(h<0.5){toast('That is too low for the top');return;} }
-  A.wall.H=h; A.step='tools'; A.dirty=true; initMosaic(); buildUI();
+  A.wall.H=h; A.step='tools'; A.dirty=true; buzz(); initMosaic(); buildUI(); saveWall(false); toast('Wall set up. Now film it and add marks.');
 }
 function computeFrame(initial){
   const a=A.corners[0].pos, b=A.corners[1].pos;
@@ -540,22 +929,23 @@ function addPoint(){
   if(!A.target){toast('Aim at the wall');return;}
   const p=[+A.target[0].toFixed(3), +A.target[1].toFixed(3)];
   const t=TYPES[A.tool];
-  if(t.kind==='point'){ A.wall.features.push({id:uid(),type:A.tool,pts:[p]}); toast(t.label+' added'); }
+  buzz();
+  if(t.kind==='point'){ A.wall.features.push({id:uid(),type:A.tool,pts:[p]}); toast(t.label+' added'); saveWall(false); }
   else {
     if(!A.pending) A.pending={type:A.tool,pts:[]};
     A.pending.pts.push(p);
     if((t.kind==='rect'||t.kind==='two') && A.pending.pts.length===2) finishPending();
   }
-  A.dirty=true; A.featDirty=true;
+  A.dirty=true; A.featDirty=true; buildUI();
 }
 function finishPending(){
-  if(A.pending && A.pending.pts.length>=2){ A.wall.features.push({id:uid(),type:A.pending.type,pts:A.pending.pts}); A.dirty=true; }
+  if(A.pending && A.pending.pts.length>=2){ A.wall.features.push({id:uid(),type:A.pending.type,pts:A.pending.pts}); A.dirty=true; toast(TYPES[A.pending.type].label+' saved'); A.pending=null; saveWall(false); }
   A.pending=null; A.featDirty=true;
 }
 function undo(){
   if(A.pending&&A.pending.pts.length){A.pending.pts.pop();}
   else if(A.wall.features.length){A.wall.features.pop();toast('Removed last mark');}
-  A.dirty=true; A.featDirty=true;
+  A.dirty=true; A.featDirty=true; buildUI(); saveWall(false);
 }
 
 /* mosaic: the wall picture built from the live camera, stored premultiplied in a texture */
@@ -578,17 +968,17 @@ function initMosaic(){
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
       gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,Math.min(A.tw,img.width),Math.min(A.th,img.height),gl.RGBA,gl.UNSIGNED_BYTE,resizeTo(img,A.tw,A.th));
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
-      A.hasMosaic=true; $('opacity').value=A.tool==='check'?70:40; buildUI();
+      A.hasMosaic=true; A.opacity=A.tool==='check'?0.7:0.45; buildUI();
     };
     img.src=URL.createObjectURL(A.mosaicBlob);
   }
 }
 function resizeTo(img,w,h){ if(img.width===w&&img.height===h) return img; const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c; }
 
-async function saveWall(){
+async function saveWall(full){
   const w=A.wall; w.updated=Date.now();
   if(G.mosFB && (A.recFrames>0 || A.mosaicBlob)){
-    if(A.recFrames>0){
+    if(A.recFrames>0 && full){
       gl.bindFramebuffer(gl.FRAMEBUFFER,G.mosFB);
       const px=new Uint8Array(A.tw*A.th*4); gl.readPixels(0,0,A.tw,A.th,gl.RGBA,gl.UNSIGNED_BYTE,px);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);
@@ -599,10 +989,10 @@ async function saveWall(){
           if(a>6){ id.data[dst+x]=Math.min(255,px[src+x]*255/a); id.data[dst+x+1]=Math.min(255,px[src+x+1]*255/a); id.data[dst+x+2]=Math.min(255,px[src+x+2]*255/a); id.data[dst+x+3]=a; } } }
       ctx.putImageData(id,0,0);
       w.mosaic=await new Promise(r=>c.toBlob(r,'image/png'));
-      w.coverage=cov/(A.tw*A.th); A.mosaicBlob=w.mosaic;
+      w.coverage=cov/(A.tw*A.th); A.mosaicBlob=w.mosaic; A.recFrames=0;
     } else w.mosaic=A.mosaicBlob;
   } else w.mosaic=A.mosaicBlob||null;
-  await putWall(w); A.dirty=false;
+  await putWall(w); if(full) A.dirty=false;
 }
 
 function redrawFeatures(){
@@ -610,7 +1000,7 @@ function redrawFeatures(){
   const c=G.featCanvas; c.width=Math.round(W*s); c.height=Math.round(H*s);
   const ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
   ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=4; ctx.strokeRect(2,2,c.width-4,c.height-4);
-  if($('showMarks').checked) drawWall(ctx,A.wall,s,{pending:A.pending});
+  if(A.showMarks) drawWall(ctx,A.wall,s,{pending:A.pending});
   canvasTex(gl,c,G.featTex); A.featDirty=false;
 }
 
@@ -652,7 +1042,7 @@ function onFrame(t,frame){
     if(A.F && A.step==='tools'){
       const O=add(origin(),scl(A.F.N,0.003)), M=basis(scl(A.F.U,A.wall.W),scl(A.F.V,A.wall.H),A.F.N,O);
       gl.uniformMatrix4fv(G.tex.u.uM,false,M);
-      const op=$('opacity').value/100;
+      const op=A.opacity;
       if(A.hasMosaic && op>0 && !A.recording){ gl.bindTexture(gl.TEXTURE_2D,G.mosTex); gl.uniform1i(G.tex.u.uPre,1); gl.uniform1f(G.tex.u.uO,op); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); }
       gl.bindTexture(gl.TEXTURE_2D,G.featTex); gl.uniform1i(G.tex.u.uPre,0); gl.uniform1f(G.tex.u.uO,1); gl.uniform4f(G.tex.u.uTint,1,1,1,1); gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }
@@ -685,34 +1075,37 @@ function accumulate(view,img){
   A.hasMosaic=true; A.recFrames++; A.dirty=true;
 }
 function hudInfo(){
-  const now=performance.now(); const r=$('readout');
+  const now=performance.now(), r=$('readout'), ret=$('reticle');
   let level=null;
   if(A.step!=='tools'){
-    if(now-A.lastHud>150){ A.lastHud=now; r.textContent=A.hit?'':'Looking for surfaces… move the phone slowly'; const b=$('placeBtn'); if(b&&A.step!=='top') b.disabled=!A.hit; }
+    if(now-A.lastHud>150){ A.lastHud=now;
+      const ok = A.step==='top' ? !!A.target : !!A.hit;
+      r.textContent = ok ? '' : (A.step==='top'?'Point at the wall':'Move your phone slowly to find the surface');
+      ret.style.setProperty('--rc', ok?'#fff':'rgba(255,255,255,.4)'); $('shutter').disabled=!ok; }
     return null;
   }
-  if(!A.target){ if(now-A.lastHud>150){A.lastHud=now;r.textContent='Point at the wall';} return null; }
+  if(!A.target){ if(now-A.lastHud>150){A.lastHud=now;r.textContent='Point at the wall';ret.style.setProperty('--rc','rgba(255,255,255,.4)');} return null; }
   const p=A.target, inside=p[0]>=-0.02&&p[0]<=A.wall.W+0.02&&p[1]>=-0.02&&p[1]<=A.wall.H+0.02;
   let d=null;
-  if(A.tool==='check'||A.wall.features.length){ d=describe(A.wall,p); level=d.level; }
+  if(A.tool==='check'){ d=describe(A.wall,p); level=d.level; }
   if(now-A.lastHud>120){
     A.lastHud=now;
+    const col = level==='bad'?'#ff453a':level==='warn'?'#ffd60a':level==='ok'?'#30d158':'#fff';
+    ret.style.setProperty('--rc', inside?col:'rgba(255,255,255,.4)');
     if(!inside) r.innerHTML='Outside this wall';
-    else if(A.tool==='check') r.innerHTML=`<span style="color:var(--${d.level})">${d.status}</span><br>${d.free}<br><small>${d.pos}</small>`;
+    else if(A.tool==='check') r.innerHTML=`<span style="color:${col}">${d.status}</span><br><small>${d.free}</small>`;
     else {
       let extra='';
-      if(A.pending&&A.pending.pts.length){ const q=A.pending.pts[A.pending.pts.length-1]; extra=`<br><small>${mm2(Math.hypot(p[0]-q[0],p[1]-q[1]))} from last point</small>`; }
-      r.innerHTML=`${d0(p)}${extra}`+(A.recording?`<br><small style="color:#ff8a8a">● filming — move slowly</small>`:'');
+      if(A.pending&&A.pending.pts.length){ const q=A.pending.pts[A.pending.pts.length-1]; extra=` · <small>${mm2(Math.hypot(p[0]-q[0],p[1]-q[1]))} from last</small>`; }
+      r.innerHTML=`${mm2(Math.max(0,p[0]))} from left · ${mm2(Math.max(0,p[1]))} up${extra}`+(A.recording?`<br><small style="color:#ff6961">● Filming · move slowly</small>`:'');
     }
   }
-  if(A.tool!=='check') level=null;
   return level;
 }
-const d0=p=>`${mm2(Math.max(0,p[0]))} from corner 1 · ${mm2(Math.max(0,p[1]))} up`;
 
 /* ---------- start ---------- */
-checkSupport().then(renderHome).catch(e=>{console.error(e);renderHome();});
 if(new URLSearchParams(location.search).has('flip')){ try{localStorage.setItem('wsl-flip',new URLSearchParams(location.search).get('flip'));}catch(e){} }
+checkSupport().then(renderHome).catch(e=>{console.error(e);renderHome();}).then(()=>{ let seen=false; try{seen=localStorage.getItem('wsl-onboarded')==='1';}catch(e){} if(!seen) showOnboarding(); });
 </script>
 </body>
 </html>
